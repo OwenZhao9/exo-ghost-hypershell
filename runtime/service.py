@@ -37,7 +37,25 @@ def build_parser() -> argparse.ArgumentParser:
                     help=f"每 N 秒无运动时给左腿一个 {KEEPALIVE_PULSE_NM} Nm×"
                          f"{KEEPALIVE_PULSE_S} s 的脉冲，试图阻止设备闲置待机（0=关）")
     ap.add_argument("--no-web", action="store_true", help="不启动网页仪表盘")
+    ap.add_argument("--body", choices=["auto", "real", "sim"], default="auto",
+                    help="用哪具身体：real=真外骨骼，sim=数字义体，auto=找不到真机就用义体")
     return ap
+
+
+def make_bridge(a, session):
+    """按 --body 选一具身体。两者接口一致，服务本身不关心用的是哪个。"""
+    from bridge.ports import find_port
+    safety = lambda s: session.monitor.trip(s)      # noqa: E731
+    want = a.body
+    if want == "auto":
+        want = "real" if find_port() else "sim"
+    if want == "sim":
+        from bridge.sim import SimBridge
+        print("身体：数字义体（sim）—— 参数来自真机录制的辨识结果", flush=True)
+        return SimBridge(torque_limit=a.limit, ramp_nm_per_s=a.ramp, safety_check=safety).open()
+    print("身体：真外骨骼（real）", flush=True)
+    return ExoBridge(port=a.port, torque_limit=a.limit, ramp_nm_per_s=a.ramp,
+                     safety_check=safety).open()
 
 
 def read_cmd_file(last_seq: int) -> Optional[dict]:
@@ -58,8 +76,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     cmdq: "queue.Queue[dict]" = queue.Queue()
     hub = None if a.no_web else WebHub(on_command=cmdq.put)
 
-    bridge = ExoBridge(port=a.port, torque_limit=a.limit, ramp_nm_per_s=a.ramp,
-                       safety_check=lambda s: session.monitor.trip(s)).open()
+    bridge = make_bridge(a, session)
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
 
     def log(msg: str, level: str = "info") -> None:
