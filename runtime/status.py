@@ -40,7 +40,9 @@ def console_line(*, state: str, policy: str, gain: float, hz: float,
 
 def snapshot(*, t: float, state: str, policy: str, gain: float, max_torque: float,
              hz: float, work_J: float, tripped: Optional[str], legs_offline: bool,
-             reconnects: int, memory: Optional[Mapping[str, Any]] = None,
+             reconnects: int, scale: float = 1.0,
+             reflex: Optional[Mapping[str, Any]] = None,
+             memory: Optional[Mapping[str, Any]] = None,
              decision: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
     """推给仪表盘的那一包（不含逐帧读数）。
 
@@ -50,8 +52,10 @@ def snapshot(*, t: float, state: str, policy: str, gain: float, max_torque: floa
     没接对应的层时为 None，仪表盘据此隐藏那一栏。
     """
     out = {"t": t, "state": state, "policy": policy, "gain": gain, "max": max_torque,
-           "hz": hz, "work_J": work_J, "tripped": tripped,
+           "hz": hz, "work_J": work_J, "tripped": tripped, "scale": scale,
            "legs_offline": legs_offline, "reconnects": reconnects}
+    if reflex is not None:
+        out["reflex"] = dict(reflex)
     if memory is not None:
         out["memory"] = dict(memory)
     if decision is not None:

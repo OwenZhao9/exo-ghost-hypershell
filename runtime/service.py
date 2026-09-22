@@ -286,6 +286,7 @@ def main(argv: Optional[list[str]] = None) -> None:
                     max_torque=session.policy.max_torque, hz=bridge.stream_hz(),
                     work_J=stats["work"], tripped=bridge.tripped,
                     legs_offline=bridge.legs_offline, reconnects=bridge.n_reconnects,
+                    scale=stats["scale"], reflex=session.monitor.scale_detail(),
                     memory=None if memory is None else memory.snapshot(),
                     decision=None if decider is None else decider.snapshot())
                 if hub:

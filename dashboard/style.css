@@ -1,0 +1,85 @@
+/* Exo Ghost 监视器的样式。改配色只动 :root 里的变量。 */
+:root{
+    --bg:#0e1013; --panel:#161920; --line:#252a35; --grid:#1e222b; --ink:#e8eaf0; --muted:#8a93a6;
+    --green:#3ddc84; --red:#ff5d5d; --amber:#ffb454; --blue:#5aa9ff; --pink:#ff7ab6; --cyan:#4fd1d9; --violet:#b28dff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"PingFang SC","Helvetica Neue",system-ui,sans-serif;font-size:14px;overflow:hidden}
+  .app{display:flex;flex-direction:column;height:100vh}
+
+  header{display:flex;gap:14px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);flex-shrink:0;flex-wrap:wrap}
+  .badge{font-weight:700;padding:5px 14px;border-radius:999px;font-size:15px;white-space:nowrap}
+  .ARMED{background:#0e3d27;color:var(--green)} .TRIPPED{background:#4a1616;color:var(--red)}
+  .LEGS_OFF{background:#463010;color:var(--amber)} .RECONN{background:#3a3410;color:var(--amber)} .OFFLINE{background:#23262e;color:var(--muted)}
+  .stat{display:flex;flex-direction:column;line-height:1.15}
+  .stat .l{font-size:10px;color:var(--muted);letter-spacing:.06em}
+  .stat .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+  .spacer{flex:1}
+  .tools{display:flex;gap:6px;align-items:center}
+  .tools button,.seg button{background:#1d212b;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:6px 11px;font-size:13px;cursor:pointer}
+  .tools button.on,.seg button.on{border-color:var(--blue);color:var(--blue);background:#12203a}
+
+  main{flex:1;display:flex;min-height:0}
+  .charts{flex:1;display:flex;flex-direction:column;gap:8px;padding:10px;min-width:0;min-height:0;overflow:hidden}
+  .chart{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 8px 2px;display:flex;flex-direction:column;flex:1;min-height:130px;position:relative}
+  .chart.sm{flex:0 0 118px}
+  .chead{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--muted);padding:0 2px 3px;flex-wrap:wrap}
+  .chead .t{font-weight:600;color:#c3cad8}
+  .chead .sc{margin-left:auto;display:flex;gap:4px}
+  .chead .sc button{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:5px;padding:1px 7px;font-size:11px;cursor:pointer}
+  .chead .sc button.on{border-color:var(--blue);color:var(--blue)}
+  .leg{display:flex;gap:12px;font-variant-numeric:tabular-nums}
+  .leg i{display:inline-block;width:11px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+  .leg b{font-weight:600;color:var(--ink)}
+  .cwrap{flex:1;position:relative;min-height:0}
+  canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block;touch-action:none}
+
+  aside{width:290px;flex-shrink:0;border-left:1px solid var(--line);display:flex;flex-direction:column;padding:10px;gap:9px;overflow-y:auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px}
+  .card h3{margin:0 0 9px;font-size:11px;color:var(--muted);letter-spacing:.08em;font-weight:600}
+  .row{display:flex;gap:7px}
+  .row button{flex:1;background:#1d212b;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 0;font-size:14px;font-weight:600;cursor:pointer}
+  .row button.on{border-color:var(--blue);color:var(--blue);background:#12203a}
+  .estop{width:100%;background:#8d1a1a;border:1px solid #bd2f2f;color:#fff;border-radius:10px;padding:17px;font-size:20px;font-weight:700;letter-spacing:.12em;cursor:pointer}
+  .arm{width:100%;background:#17422e;border:1px solid #2d7a52;color:#cfffe6;border-radius:9px;padding:11px;font-weight:600;margin-top:8px;cursor:pointer}
+  label.sl{display:flex;align-items:center;gap:9px;margin:9px 0;color:var(--muted);font-size:13px}
+  label.sl input{flex:1} label.sl b{min-width:58px;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+  .apply{width:100%;background:#12203a;border:1px solid var(--blue);color:var(--blue);border-radius:8px;padding:9px;font-weight:600;cursor:pointer}
+  .log{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.55;max-height:190px;overflow:auto}
+  .log .err{color:var(--red)} .log .warn{color:var(--amber)} .log .ok{color:var(--green)}
+  .foot{font-size:11px;color:var(--muted);line-height:1.5}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:6px;vertical-align:middle}
+  .dot.on{background:var(--green)}
+  @media(max-width:860px){
+    body{overflow:auto} .app{height:auto}
+    main{flex-direction:column} aside{width:auto;border-left:none;border-top:1px solid var(--line)}
+    .chart{min-height:150px} header{gap:10px}
+  }
+
+/* ---------- Ghost 三层面板 ---------- */
+.card.ghost{ font-size:12px }
+.glayer{ border-top:1px solid var(--line); padding:8px 0 4px }
+.glayer:first-of-type{ border-top:0; padding-top:0 }
+.gtag{ display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; margin-right:6px }
+.gtag.reflex{ background:rgba(255,93,93,.15); color:var(--red) }
+.gtag.intuit{ background:rgba(90,169,255,.15); color:var(--blue) }
+.gtag.memo{ background:rgba(178,141,255,.15); color:var(--violet) }
+.ghz{ color:var(--muted); font-size:11px }
+.gline{ margin:5px 0; line-height:1.5 }
+.gline.err{ color:var(--red) } .gline .warn,.gline.warn{ color:var(--amber) } .gline .ok{ color:var(--green) }
+.gnote{ color:var(--muted); font-size:11px; line-height:1.5; margin:4px 0 0 }
+.gthr{ color:var(--muted); font-size:11px; margin-left:4px }
+.gbar{ display:inline-block; width:64px; height:6px; border-radius:3px; background:var(--grid);
+       vertical-align:middle; margin:0 5px; overflow:hidden }
+.gbar i{ display:block; height:100%; background:var(--blue) }
+.gbar i.ok{ background:var(--green) } .gbar i.warn{ background:var(--amber) } .gbar i.hi{ background:var(--blue) }
+.grow{ display:flex; align-items:center; gap:4px; margin:2px 0; color:var(--muted) }
+.grow span{ width:36px } .grow b{ color:var(--ink); font-variant-numeric:tabular-nums }
+.grow .gbar{ flex:1; width:auto }
+.gchips{ margin:6px 0 0 } 
+.gchip{ display:inline-block; background:var(--grid); border-radius:4px; padding:1px 6px;
+        margin:0 4px 4px 0; color:var(--muted); font-size:11px }
+.gchip b{ color:var(--ink); font-variant-numeric:tabular-nums }
+.gsteps{ margin:5px 0 0; padding-left:18px; color:var(--muted); line-height:1.6 }
+.gsteps li{ margin:2px 0 }
