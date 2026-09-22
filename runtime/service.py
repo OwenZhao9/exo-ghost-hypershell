@@ -37,6 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help=f"每 N 秒无运动时给左腿一个 {KEEPALIVE_PULSE_NM} Nm×"
                          f"{KEEPALIVE_PULSE_S} s 的脉冲，试图阻止设备闲置待机（0=关）")
     ap.add_argument("--no-web", action="store_true", help="不启动网页仪表盘")
+    ap.add_argument("--no-memory", action="store_true",
+                    help="不加载经验库（默认加载 data/genes.db，遇到设备异常会自动回忆解法）")
+    ap.add_argument("--memory-db", default="data/genes.db", help="经验库路径")
     ap.add_argument("--body", choices=["auto", "real", "sim"], default="auto",
                     help="用哪具身体：real=真外骨骼，sim=数字义体，auto=找不到真机就用义体")
     return ap
@@ -77,6 +80,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     hub = None if a.no_web else WebHub(on_command=cmdq.put)
 
     bridge = make_bridge(a, session)
+    memory = None
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
 
     def log(msg: str, level: str = "info") -> None:
@@ -129,8 +133,28 @@ def main(argv: Optional[list[str]] = None) -> None:
             session.policy = P.make_policy("zero", 0.0, 1.5)
         msg, level = events.describe(ev)
         log(msg, level)
+        if memory is not None:               # 出了事先去翻以前踩过的坑
+            memory.note(f"设备事件：{ev}", "partial", payload={"event": ev})
+            memory.recall_for_event(ev)
 
     bridge.on_event(on_event)
+
+    # ---------- 经验层（慎思，跑在自己的线程上，绝不进串口读线程） ----------
+    if not a.no_memory:
+        from agent.memory import GhostMemory
+
+        def on_recall(r) -> None:
+            if not r.hits:
+                extra = f"（有 {r.weak} 条沾边但相似度不够，不拿出来误导）" if r.weak else ""
+                log(f"回忆「{r.query}」：库里没有相关经验{extra}", "warn")
+                return
+            top = r.hits[0]
+            log(f"回忆「{r.query}」→ {top.asset.title}（相似度 {top.score:.2f}）", "ok")
+            for i, step in enumerate(getattr(top.asset, "strategy_steps", ())[:4], 1):
+                log(f"    {i}. {step}")
+
+        memory = GhostMemory(db_path=a.memory_db, on_recall=on_recall).start()
+        session.memory = memory
 
     # 启动时忽略上次遗留的命令文件，避免重放旧策略
     try:
@@ -147,6 +171,11 @@ def main(argv: Optional[list[str]] = None) -> None:
     print(f"安全档 {prof.name}: acc>{prof.acc_trip_g}g gyro>{prof.gyro_trip_dps} "
           f"tilt>{prof.tilt_trip_deg} 关节>{prof.joint_dps_trip}°/s | "
           f"软限幅 ±{a.limit} Nm 斜坡 {a.ramp} Nm/s | 记录 {bridge.log_path}")
+    if memory is not None:
+        memory.wait_boot(3.0)                # 只在启动时等一下，为了能报出继承了几条
+        snap = memory.snapshot()
+        print(f"经验库 {a.memory_db}：继承了 {snap['inherited']} 条经验"
+              f"（本次新播种 {snap['seeded']} 条）", flush=True)
     print(status.HEADER, flush=True)
 
     last_print = 0.0
@@ -192,7 +221,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                     t=now, state=st, policy=session.policy.name, gain=session.policy.gain,
                     max_torque=session.policy.max_torque, hz=bridge.stream_hz(),
                     work_J=stats["work"], tripped=bridge.tripped,
-                    legs_offline=bridge.legs_offline, reconnects=bridge.n_reconnects)
+                    legs_offline=bridge.legs_offline, reconnects=bridge.n_reconnects,
+                    memory=None if memory is None else memory.snapshot())
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(STATUS_FILE, status.full_snapshot(
@@ -203,6 +233,15 @@ def main(argv: Optional[list[str]] = None) -> None:
     finally:
         print("DISABLE ->", bridge.disable(), flush=True)
         bridge.close()
+        if memory is not None:               # 把这次会话沉淀下去再走
+            memory.note("会话结束", "success", payload={
+                "frames": stats["n"], "work_J": round(stats["work"], 3),
+                "profile": prof.name, "reconnects": bridge.n_reconnects,
+                "tripped": bridge.tripped,
+            })
+            memory.close()
+            print(f"经验库：本次继承 {memory.inherited} 条，"
+                  f"丢弃 {memory.dropped} 个任务，出错 {memory.errors} 次", flush=True)
 
 
 if __name__ == "__main__":

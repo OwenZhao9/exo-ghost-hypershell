@@ -5,6 +5,8 @@
   uv run python -m tools.ctl estop       # 急停（锁存）
   uv run python -m tools.ctl arm         # 急停后重新武装（回到 zero）
   uv run python -m tools.ctl status      # 看最近一秒状态
+  uv run python -m tools.ctl recall "腿板掉线"        # 让 Ghost 去经验库里查
+  uv run python -m tools.ctl fault legs_offline       # 给数字义体注入一次故障
   uv run python -m tools.ctl quit
 """
 import argparse, json, os, time
@@ -24,6 +26,14 @@ def main():
     up.add_argument("nm", type=float); up.add_argument("--seconds", type=float, default=30.0)
     dn = sub.add_parser("down", help="两腿同时向下（左正右负）：down <Nm> [--seconds N]")
     dn.add_argument("nm", type=float); dn.add_argument("--seconds", type=float, default=30.0)
+    from bridge.faults import FAULT_KINDS
+    ft = sub.add_parser("fault", help="给数字义体注入故障（仅 --body sim）：" +
+                        "；".join(f"{k}={v.split('：')[0]}" for k, v in FAULT_KINDS.items()))
+    ft.add_argument("kind", choices=sorted(FAULT_KINDS))
+    ft.add_argument("--delay", type=float, default=0.0, help="几秒后开始")
+    ft.add_argument("--seconds", type=float, default=6.0, help="持续多久后自动恢复")
+    rc = sub.add_parser("recall", help="让 Ghost 去经验库里查一次，结果出现在事件栏")
+    rc.add_argument("query"); rc.add_argument("-k", type=int, default=3)
     for n in ("zero", "estop", "arm", "quit", "status", "reload"): sub.add_parser(n)
     a = ap.parse_args()
     if a.op == "status":
@@ -42,6 +52,8 @@ def main():
         cmd.update(op="torque", L=-abs(a.nm), R=+abs(a.nm), seconds=a.seconds, max=1.5)
     if a.op == "down":
         cmd.update(op="torque", L=+abs(a.nm), R=-abs(a.nm), seconds=a.seconds, max=1.5)
+    if a.op == "fault": cmd.update(kind=a.kind, delay=a.delay, seconds=a.seconds)
+    if a.op == "recall": cmd.update(query=a.query, k=a.k)
     if a.op == "hold":
         cmd.update(kp=a.kp, kd=a.kd, ki=a.ki, max=a.max, slew=a.slew)
         for leg, v in (("L", a.left), ("R", a.right)):

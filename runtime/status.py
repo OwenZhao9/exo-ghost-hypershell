@@ -40,11 +40,18 @@ def console_line(*, state: str, policy: str, gain: float, hz: float,
 
 def snapshot(*, t: float, state: str, policy: str, gain: float, max_torque: float,
              hz: float, work_J: float, tripped: Optional[str], legs_offline: bool,
-             reconnects: int) -> dict[str, Any]:
-    """推给仪表盘的那一包（不含逐帧读数）。"""
-    return {"t": t, "state": state, "policy": policy, "gain": gain, "max": max_torque,
-            "hz": hz, "work_J": work_J, "tripped": tripped,
-            "legs_offline": legs_offline, "reconnects": reconnects}
+             reconnects: int, memory: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+    """推给仪表盘的那一包（不含逐帧读数）。
+
+    `memory` 是 `agent.memory.GhostMemory.snapshot()` 的输出：继承了几条经验、
+    最近一次回忆查到了什么。没接经验层时为 None，仪表盘据此隐藏那一栏。
+    """
+    out = {"t": t, "state": state, "policy": policy, "gain": gain, "max": max_torque,
+           "hz": hz, "work_J": work_J, "tripped": tripped,
+           "legs_offline": legs_offline, "reconnects": reconnects}
+    if memory is not None:
+        out["memory"] = dict(memory)
+    return out
 
 
 def full_snapshot(base: Mapping[str, Any], *, ldeg: float, rdeg: float,

@@ -23,6 +23,7 @@ from sim2real_actuator import ActuatorParams, ActuatorSim, identify, load_column
 
 from .limits import clamp as clamp_torque
 from .limits import effective_limit, ramp_step, step_toward
+from .faults import FaultInjector
 from .logger import SessionLogger
 from .plant import DEG2RAD, LegLoad
 from .protocol import DEFAULT_LIMIT_NM, DEFAULT_RAMP_NM_PER_S, SEND_HZ, Sample
@@ -104,6 +105,7 @@ class SimBridge:
         self._on_event: list[Callable[[str], None]] = []
         self._logger = SessionLogger(log_dir, prefix="sim")
         self._t0 = 0.0
+        self.faults = FaultInjector()        # 按需复现真机故障，见 bridge/faults.py
 
     # ---------- 与 ExoBridge 一致的门面 ----------
     def open(self) -> "SimBridge":
@@ -226,19 +228,35 @@ class SimBridge:
                        gx=0.0, gy=0.0, gz=0.0, ax=0.0, ay=0.0, az=1.0,
                        kpa=101.0, ldeg=ldeg, rdeg=rdeg, ldps=ldps, rdps=rdps,
                        cmd_l=cl, cmd_r=cr)
-            self.latest = s
-            self.n_samples += 1
-            self._times.append(now)
-            self._logger.write(s)
-            if self.safety_check and self.enabled:
-                why = self.safety_check(s)
-                if why:
-                    self.trip(why)
-            for cb in self._on_sample:
-                try:
-                    cb(s)
-                except Exception as e:
-                    self.last_err = f"callback: {e}"
+            # 故障注入：可能改写这一帧，也可能整帧丢掉（模拟串口断开）
+            s, injected = self.faults.step(now, s)
+            for ev in injected:
+                if ev == "legs_offline":
+                    self.legs_offline = True
+                    self.set_torque(0.0, 0.0)
+                elif ev == "legs_online":
+                    self.legs_offline = False
+                elif ev == "stall":
+                    self._reconnecting = True
+                elif ev == "reconnected":
+                    self._reconnecting = False
+                    self.n_reconnects += 1
+                self._emit(ev)
+
+            if s is not None:
+                self.latest = s
+                self.n_samples += 1
+                self._times.append(now)
+                self._logger.write(s)
+                if self.safety_check and self.enabled:
+                    why = self.safety_check(s)
+                    if why:
+                        self.trip(why)
+                for cb in self._on_sample:
+                    try:
+                        cb(s)
+                    except Exception as e:
+                        self.last_err = f"callback: {e}"
 
             next_t += dt / max(self.speed, 1e-6)
             sleep = next_t - time.perf_counter()
