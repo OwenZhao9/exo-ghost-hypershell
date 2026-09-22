@@ -56,6 +56,6 @@
     ]
   },
   "info": {
-    "first_trip_reason": "倾角 pitch=57 roll=15 > 45.0°（跌倒）"
+    "first_trip_reason": "倾角 pitch=57° > 45.0°（跌倒）"
   }
 }
