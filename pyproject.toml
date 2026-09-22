@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.3",
     "pyserial>=3.5",
+    "sim2real-actuator",
     "websockets>=17.1",
 ]
 
@@ -13,3 +14,6 @@ dependencies = [
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.uv.sources]
+sim2real-actuator = { git = "https://github.com/OwenZhao9/sim2real-actuator", rev = "v0.1.0" }
