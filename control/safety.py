@@ -1,56 +1,46 @@
 """安全监视器：所有判定都是纯规则，运行在桥接层回调里，不经过 LLM。
-两类输出：
-  trip(s)   -> 返回非空字符串即急停（力矩清零 + DISABLE，锁存，需重启程序）
-  scale(s)  -> 0..1，对 assist（负阻尼）做渐弱：接近速度上限 / 角度边界 / 能量预算时压到 0
+
+两类输出（分工没变）：
+  trip(s)   -> 返回非空字符串即"这一帧不安全"。**本层不锁存**，锁存由调用方
+               （ExoBridge.trip → 力矩清零 + DISABLE）负责。
+  assist_scale(s, τl, τr) -> 0..1，对 assist（负阻尼）做渐弱。
+
+判定内核换成了 [fly-reflex](https://github.com/OwenZhao9/fly-reflex)：
+一个受果蝇逃逸反射启发的确定性反射层——时间由调用方传入、不碰 time.time()、
+运行期不抛异常，所以同一份录制回放两次结果逐帧一致（回归基准就靠这个）。
+
+这里留下的只有 fly-reflex 明确不管的两件**有状态**的事：
+
+  1. 中立位：热身 2 秒取左右髋角的中位数，之后"偏离中立位多少度"才有意义。
+  2. 正功预算：最近 1 秒对腿做了多少正功，超预算就把 assist 压到 0 并冷却 0.5 秒。
+
+契约要求 `derived=` 里的函数无状态，所以这两个量由本文件算好，以普通 key 塞进
+每帧的 sensors 字典（`l_dev` / `r_dev` / `session_s`），再交给 fly-reflex 判。
 """
 from __future__ import annotations
 import math, time
 from collections import deque
-from dataclasses import dataclass, field
 from typing import Optional
+
+from fly_reflex import Action, Reflex
+
 from bridge.serial_io import Sample
+from .profiles import PROFILES, SafetyProfile, TABLE, WEARING
+from .reflex_rules import DERIVED, DPS_IGNORE_ABOVE, build_rules, build_tapers
 
-
-@dataclass
-class SafetyProfile:
-    name: str
-    # 急停阈值
-    acc_trip_g: float            # 腰部加速度模长（静止 1 g；走路峰值 ~1.5 g；摔倒/撞击 > 2.5 g）
-    gyro_trip_dps: float         # 腰部角速度（走路 < 150 °/s；摔倒/急转 > 300）
-    tilt_trip_deg: Optional[float]   # |pitch| 或 |roll| 超过即急停；桌面测试设 None（侧躺 ~75°）
-    joint_dps_trip: float        # 关节角速度超过即急停（走路 < 300 °/s）
-    min_stream_hz: float         # 数据流低于此频率 → 急停（速度估计不可信）
-    max_session_s: float         # 硬性会话时长
-    # assist 渐弱
-    assist_dps_soft: float       # 超过此速度 assist 开始渐弱
-    assist_dps_hard: float       # 超过此速度 assist = 0
-    assist_angle_soft_deg: float # 偏离中立位超过此角度开始渐弱
-    assist_angle_hard_deg: float # 偏离中立位超过此角度 assist = 0
-    assist_energy_J_per_s: float # 每秒对腿做的正功预算，超过 → assist = 0 直到回落
-
-
-TABLE = SafetyProfile(
-    name="table", acc_trip_g=3.0, gyro_trip_dps=400.0, tilt_trip_deg=None, joint_dps_trip=2500.0,   # 桌面：支架自由甩动/腿板上线自检会到 1200–1700°/s，只拦饱和级事件
-    min_stream_hz=120.0, max_session_s=1800,
-    assist_dps_soft=120.0, assist_dps_hard=220.0, assist_angle_soft_deg=40.0, assist_angle_hard_deg=60.0,
-    assist_energy_J_per_s=1.5,
-)
-WEARING = SafetyProfile(
-    name="wearing", acc_trip_g=2.5, gyro_trip_dps=300.0, tilt_trip_deg=45.0, joint_dps_trip=450.0,
-    min_stream_hz=120.0, max_session_s=600,
-    assist_dps_soft=150.0, assist_dps_hard=260.0, assist_angle_soft_deg=45.0, assist_angle_hard_deg=65.0,
-    assist_energy_J_per_s=3.0,
-)
-PROFILES = {"table": TABLE, "wearing": WEARING}
+__all__ = ["SafetyProfile", "TABLE", "WEARING", "PROFILES", "SafetyMonitor"]
 
 
 class SafetyMonitor:
-    def __init__(self, profile: SafetyProfile, warmup_s: float = 2.0):
+    def __init__(self, profile: SafetyProfile, warmup_s: float = 2.0, backend: str = "rules"):
+        """backend="rules" 是逐条阈值；"spiking" 换成 fly-reflex 的脉冲网络后端
+        （接口完全一样，需要 numpy）。默认永远是 rules——脉冲后端只用于演示对照。"""
         self.p = profile
         self.t_start: Optional[float] = None
         self.warmup_s = warmup_s
         self.neutral_l: Optional[float] = None
         self.neutral_r: Optional[float] = None
+        self.backend = backend
         self._warm_l: list[float] = []; self._warm_r: list[float] = []
         self._times: deque[float] = deque(maxlen=400)
         self._energy: deque[tuple[float, float]] = deque()   # (t, +J) 最近 1 s 的正功
@@ -58,20 +48,48 @@ class SafetyMonitor:
         self._budget_blown_until = 0.0
         self.last_scale = 1.0
         self.reason: Optional[str] = None
-        self._joint_over = {"左": 0, "右": 0}
+        self.reflex = self._build_reflex()
+
+    def _build_reflex(self) -> Reflex:
+        tapers = build_tapers(self.p)
+        if self.backend == "spiking":
+            return Reflex.spiking(signals=("acc_mag", "gyro_mag", "tilt_deg", "joint_dps"),
+                                  ignore_above=DPS_IGNORE_ABOVE, warmup_s=self.warmup_s,
+                                  action=Action.SOFT_STOP, tapers=tapers, derived=DERIVED)
+        return Reflex.rules(*build_rules(self.p, self.warmup_s), tapers=tapers, derived=DERIVED)
 
     def notify_reconnect(self) -> None:
-        """串口重连后调用：数据流频率判定重新热身 3 秒"""
+        """串口重连后调用：热身重新开始，数据流频率统计清空。"""
         self._times.clear()
         self.t_start = time.time()
+        self.reflex.arm(self.t_start)
+
+    # ---------- 每帧喂给反射层的观测 ----------
+    def _sensors(self, s: Sample, now: float) -> dict[str, float]:
+        """把一帧转成 fly-reflex 认识的扁平字典。带状态的量在这里算好再塞进去。"""
+        d = {
+            "ax": s.ax, "ay": s.ay, "az": s.az,
+            "gx": s.gx, "gy": s.gy, "gz": s.gz,
+            "pitch": s.pitch, "roll": s.roll,
+            "ldps": s.ldps, "rdps": s.rdps,
+            "session_s": now - (self.t_start or now),
+        }
+        if self.neutral_l is not None:
+            d["l_dev"] = abs(s.ldeg - self.neutral_l)
+            d["r_dev"] = abs(s.rdeg - self.neutral_r)
+        if self.backend == "spiking":        # 脉冲后端只认一个合并的关节信号
+            wl = 0.0 if abs(s.ldps) > DPS_IGNORE_ABOVE else s.ldps
+            wr = 0.0 if abs(s.rdps) > DPS_IGNORE_ABOVE else s.rdps
+            d["joint_dps"] = max(abs(wl), abs(wr))
+        return d
 
     # ---------- 急停判定 ----------
     def trip(self, s: Sample) -> Optional[str]:
         now = s.host_t
         if self.t_start is None:
             self.t_start = now
+            self.reflex.arm(now)
         self._times.append(now)
-        p = self.p
         # 热身阶段只采中立位，不判定动态阈值（刚 ENABLE 时可能有瞬态）
         if now - self.t_start < self.warmup_s:
             self._warm_l.append(s.ldeg); self._warm_r.append(s.rdeg)
@@ -80,47 +98,21 @@ class SafetyMonitor:
             self._warm_l.sort(); self._warm_r.sort()
             self.neutral_l = self._warm_l[len(self._warm_l)//2] if self._warm_l else s.ldeg
             self.neutral_r = self._warm_r[len(self._warm_r)//2] if self._warm_r else s.rdeg
-        a = math.sqrt(s.ax*s.ax + s.ay*s.ay + s.az*s.az)
-        if a > p.acc_trip_g:
-            return f"腰部加速度 {a:.1f} g > {p.acc_trip_g} g（撞击/摔倒）"
-        g = math.sqrt(s.gx*s.gx + s.gy*s.gy + s.gz*s.gz)
-        if g > p.gyro_trip_dps:
-            return f"腰部角速度 {g:.0f} °/s > {p.gyro_trip_dps}（急转/摔倒）"
-        if p.tilt_trip_deg is not None and (abs(s.pitch) > p.tilt_trip_deg or abs(s.roll) > p.tilt_trip_deg):
-            return f"倾角 pitch={s.pitch:.0f} roll={s.roll:.0f} > {p.tilt_trip_deg}°（跌倒）"
-        for name, w in (("左", s.ldps), ("右", s.rdps)):
-            if abs(w) < 3000 and abs(w) > p.joint_dps_trip:      # 饱和尖峰 3276.7 单独忽略
-                self._joint_over[name] += 1
-                if self._joint_over[name] >= 3:                  # 连续 3 帧（≈17 ms）才算，单帧毛刺不触发
-                    return f"{name}髋角速度 {w:.0f} °/s > {p.joint_dps_trip}"
-            else:
-                self._joint_over[name] = 0
-        if now - self.t_start > p.max_session_s:
-            return f"会话超过 {p.max_session_s:.0f} s 上限"
+        v = self.reflex.update(now, self._sensors(s, now))
         # 数据流频率不再在这里判定：通信丢失由 bridge 的 supervisor 处理（清零 + 自动重连），不是急停
-        return None
+        self.reason = v.reason if v.action is not Action.OK else None
+        return self.reason
 
     # ---------- assist 渐弱 ----------
-    @staticmethod
-    def _taper(x: float, soft: float, hard: float) -> float:
-        if x <= soft: return 1.0
-        if x >= hard: return 0.0
-        return 1.0 - (x - soft) / (hard - soft)
-
     def assist_scale(self, s: Sample, tau_l: float, tau_r: float) -> float:
         """返回 0..1。tau_* 是本帧准备下发的力矩，用来累计正功预算。"""
-        p = self.p
         if self.neutral_l is None:
             return 0.0                                      # 热身期间不助力
-        wl = 0.0 if abs(s.ldps) > 3000 else s.ldps
-        wr = 0.0 if abs(s.rdps) > 3000 else s.rdps
-        sc = 1.0
-        sc = min(sc, self._taper(abs(wl), p.assist_dps_soft, p.assist_dps_hard))
-        sc = min(sc, self._taper(abs(wr), p.assist_dps_soft, p.assist_dps_hard))
-        sc = min(sc, self._taper(abs(s.ldeg - self.neutral_l), p.assist_angle_soft_deg, p.assist_angle_hard_deg))
-        sc = min(sc, self._taper(abs(s.rdeg - self.neutral_r), p.assist_angle_soft_deg, p.assist_angle_hard_deg))
-        # 正功预算（只累计设备对腿做的正功）
         now = s.host_t
+        sc = self.reflex.scale(now, self._sensors(s, now))   # 速度 / 角度渐弱由 fly-reflex 管
+        # 正功预算（只累计设备对腿做的正功）——需要 1 秒滑动窗，按契约留在调用方
+        wl = 0.0 if abs(s.ldps) > DPS_IGNORE_ABOVE else s.ldps
+        wr = 0.0 if abs(s.rdps) > DPS_IGNORE_ABOVE else s.rdps
         if self._last_t is not None:
             dt = now - self._last_t
             pw = tau_l * math.radians(wl) + tau_r * math.radians(wr)
@@ -128,10 +120,13 @@ class SafetyMonitor:
         self._last_t = now
         while self._energy and now - self._energy[0][0] > 1.0:
             self._energy.popleft()
-        e = sum(j for _, j in self._energy)
-        if e > p.assist_energy_J_per_s:
+        if sum(j for _, j in self._energy) > self.p.assist_energy_J_per_s:
             self._budget_blown_until = now + 0.5
         if now < self._budget_blown_until:
             sc = 0.0
         self.last_scale = sc
         return sc
+
+    def stats(self) -> dict:
+        """反射层的累计统计：跑了多少帧、每条规则触发几次、丢了多少饱和帧。"""
+        return self.reflex.stats()

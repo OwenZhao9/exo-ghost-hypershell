@@ -22,28 +22,57 @@ from tests.conftest import BASELINES, load_samples
 PROFILE_NAMES = ["table", "wearing"]
 
 
+# 急停原因的措辞可以变（换后端、改文案），但**触发的是哪一类信号**不能变。
+# 把原因归到一个稳定的标识上，跨实现比较才有意义。
+SIGNAL_KEYWORDS = (
+    ("腰部加速度", "acc"), ("加速度", "acc"),
+    ("腰部角速度", "gyro"),
+    ("倾角", "tilt"), ("pitch", "tilt"), ("roll", "tilt"),
+    ("髋角速度", "joint"), ("关节", "joint"),
+    ("会话", "session"),
+    ("数据流", "stream"),
+)
+
+
+def classify(reason: str) -> str:
+    for kw, sig in SIGNAL_KEYWORDS:
+        if kw in reason:
+            return sig
+    return "other"
+
+
 def _run(profile_name: str, samples) -> dict:
-    """跑一遍安全层，把所有可观察输出录下来。"""
+    """跑一遍安全层，把可观察输出分成两部分录下来。
+
+    hard —— 硬保证，重构后必须逐字节一致（触发帧号、信号类别、中立位、渐弱系数）
+    info —— 只是说明文字，换实现时允许变，测试不断言，但会打印出来让人看见
+    """
     mon = SafetyMonitor(PROFILES[profile_name])
-    trips: list[dict] = []
+    trip: dict | None = None
     scales: list[float] = []
     for i, s in enumerate(samples):
         why = mon.trip(s)
-        if why and not trips:                      # 只记第一次触发（之后调用方会急停）
-            trips.append({"frame": i, "t_rel": round(s.host_t - samples[0].host_t, 4), "reason": why})
+        if why and trip is None:                   # 只记第一次触发（之后调用方会急停）
+            trip = {"frame": i, "t_rel": round(s.host_t - samples[0].host_t, 4),
+                    "signal": classify(why), "reason": why}
         sc = mon.assist_scale(s, 0.3, 0.3)         # 用固定的名义力矩，隔离出渐弱逻辑本身
         scales.append(round(sc, 6))
     return {
-        "n_frames": len(samples),
-        "first_trip": trips[0] if trips else None,
-        "neutral_l": None if mon.neutral_l is None else round(mon.neutral_l, 4),
-        "neutral_r": None if mon.neutral_r is None else round(mon.neutral_r, 4),
-        "scale_min": min(scales),
-        "scale_mean": round(sum(scales) / len(scales), 6),
-        "scale_frames_below_1": sum(1 for x in scales if x < 1.0),
-        "scale_frames_zero": sum(1 for x in scales if x == 0.0),
-        "scale_head": scales[:20],
-        "scale_tail": scales[-20:],
+        "hard": {
+            "n_frames": len(samples),
+            "first_trip_frame": None if trip is None else trip["frame"],
+            "first_trip_t_rel": None if trip is None else trip["t_rel"],
+            "first_trip_signal": None if trip is None else trip["signal"],
+            "neutral_l": None if mon.neutral_l is None else round(mon.neutral_l, 4),
+            "neutral_r": None if mon.neutral_r is None else round(mon.neutral_r, 4),
+            "scale_min": min(scales),
+            "scale_mean": round(sum(scales) / len(scales), 6),
+            "scale_frames_below_1": sum(1 for x in scales if x < 1.0),
+            "scale_frames_zero": sum(1 for x in scales if x == 0.0),
+            "scale_head": scales[:20],
+            "scale_tail": scales[-20:],
+        },
+        "info": {"first_trip_reason": None if trip is None else trip["reason"]},
     }
 
 
@@ -64,10 +93,15 @@ def test_safety_behaviour_matches_baseline(profile_name, sample_files):
             generated.append(ref_path.name)
             continue
         ref = json.loads(ref_path.read_text(encoding="utf-8"))
-        assert got == ref, (
+        assert got["hard"] == ref["hard"], (
             f"{csv_path.name} / {profile_name} 的安全层行为变了。\n"
+            f"触发帧号、信号类别、中立位、渐弱系数都属于硬保证，重构不准改动它们。\n"
             f"如果这是有意的改动，删掉 {ref_path.name} 重新生成并在 commit 里说明原因。"
         )
+        if got["info"] != ref["info"]:              # 措辞变了不算错，但要让人看见
+            print(f"\n[措辞变化] {ref_path.name}\n  旧：{ref['info']['first_trip_reason']}"
+                  f"\n  新：{got['info']['first_trip_reason']}")
+            ref_path.write_text(json.dumps(got, ensure_ascii=False, indent=2), encoding="utf-8")
     if generated:
         pytest.skip(f"已生成基准 {', '.join(generated)}，提交后重跑即为回归测试")
 
@@ -76,6 +110,15 @@ def test_determinism(sample_files):
     """同一份输入跑两遍，结果必须完全一致（不准依赖 time.time 或随机数）。"""
     samples = load_samples(sample_files[0])
     assert _run("table", samples) == _run("table", samples)
+
+
+def test_baseline_schema_is_split_into_hard_and_info(sample_files):
+    """基准必须分成硬保证与说明文字两块，避免为了改文案而动硬保证。"""
+    samples = load_samples(sample_files[0])[:50]
+    got = _run("table", samples)
+    assert set(got) == {"hard", "info"}
+    assert "first_trip_frame" in got["hard"] and "first_trip_reason" in got["info"]
+    assert "reason" not in json.dumps(got["hard"], ensure_ascii=False)
 
 
 def test_trip_is_latched_by_caller_contract():
