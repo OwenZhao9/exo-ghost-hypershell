@@ -40,6 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-memory", action="store_true",
                     help="不加载经验库（默认加载 data/genes.db，遇到设备异常会自动回忆解法）")
     ap.add_argument("--memory-db", default="data/genes.db", help="经验库路径")
+    ap.add_argument("--no-decide", action="store_true", help="不启用直觉层（Ghost 不再给策略建议）")
+    ap.add_argument("--autopilot", action="store_true",
+                    help="让 Ghost 真的下发它的决定（默认只建议不下发）")
+    ap.add_argument("--min-confidence", type=float, default=0.55,
+                    help="置信度门控阈值：低于它就保持原策略不动")
+    ap.add_argument("--decide-period", type=float, default=2.0, help="每隔几秒决策一次")
     ap.add_argument("--body", choices=["auto", "real", "sim"], default="auto",
                     help="用哪具身体：real=真外骨骼，sim=数字义体，auto=找不到真机就用义体")
     return ap
@@ -81,6 +87,7 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     bridge = make_bridge(a, session)
     memory = None
+    decider = None
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
 
     def log(msg: str, level: str = "info") -> None:
@@ -96,6 +103,8 @@ def main(argv: Optional[list[str]] = None) -> None:
             if hub:
                 hub.push_sample(s, 0.0, 0.0, 0.0)
             return
+        if decider is not None:
+            decider.feed(s)                  # O(1)：只是 append 一帧，决策在主循环里做
         pol = session.policy
         tl0, tr0 = pol.torque(s, 1.0)
         sc = session.monitor.assist_scale(s, tl0, tr0) if pol.name == "assist" else 1.0
@@ -156,6 +165,29 @@ def main(argv: Optional[list[str]] = None) -> None:
         memory = GhostMemory(db_path=a.memory_db, on_recall=on_recall).start()
         session.memory = memory
 
+    # ---------- 直觉层（决策，跑在主循环里，不进串口读线程） ----------
+    if not a.no_decide:
+        from agent.decide import GhostDecider
+
+        def on_decision(d) -> None:
+            src = "本地规则（无 API key）" if d.backend == "rules" and d.degraded else d.backend
+            head = f"决策：{d.want}（置信 {d.confidence:.2f}，来自 {src}）"
+            if d.held_by == "gate":
+                log(f"{head} → 置信度不足 {a.min_confidence}，保持 {d.applied} 不动", "warn")
+            elif d.held_by == "hold":
+                log(f"{head} → 刚换过策略，{decider.min_hold_s:.0f} 秒内不再改，"
+                    f"保持 {d.applied}", "warn")
+            elif d.applied == session.policy.name:
+                log(f"{head} → 与当前一致，维持 {d.applied}")
+            elif d.autopilot:
+                log(f"{head} → 自动切换到 {d.applied}", "ok")
+            else:
+                log(f"{head} → 建议切到 {d.applied}（自动驾驶未开，不下发）")
+            log(f"    依据：{d.why}")
+
+        decider = GhostDecider(period_s=a.decide_period, min_confidence=a.min_confidence,
+                               autopilot=a.autopilot, on_decision=on_decision)
+
     # 启动时忽略上次遗留的命令文件，避免重放旧策略
     try:
         session.seq = json.load(open(CMD_FILE)).get("seq", 0)
@@ -171,6 +203,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     print(f"安全档 {prof.name}: acc>{prof.acc_trip_g}g gyro>{prof.gyro_trip_dps} "
           f"tilt>{prof.tilt_trip_deg} 关节>{prof.joint_dps_trip}°/s | "
           f"软限幅 ±{a.limit} Nm 斜坡 {a.ramp} Nm/s | 记录 {bridge.log_path}")
+    if decider is not None:
+        print(f"直觉层：每 {a.decide_period:.0f} 秒决策一次，置信度门槛 {a.min_confidence}，"
+              f"自动驾驶 {'开' if a.autopilot else '关（只建议不下发）'}", flush=True)
     if memory is not None:
         memory.wait_boot(3.0)                # 只在启动时等一下，为了能报出继承了几条
         snap = memory.snapshot()
@@ -194,6 +229,35 @@ def main(argv: Optional[list[str]] = None) -> None:
                     and now > session.pulse_until + a.keepalive):
                 session.pulse_until = now + KEEPALIVE_PULSE_S
                 log(f"keepalive 脉冲 {KEEPALIVE_PULSE_NM} Nm × {KEEPALIVE_PULSE_S} s（左腿）")
+
+            # 直觉层：每隔 --decide-period 做一次决策（会阻塞，所以只在主循环里做）
+            if decider is not None and decider.due(now):
+                try:
+                    d = decider.tick(now, current_policy=session.policy.name,
+                                     armed=session.armed, tripped=bridge.tripped,
+                                     legs_offline=bridge.legs_offline)
+                except Exception as e:
+                    d = None
+                    log(f"决策层出错（已忽略，不影响控制）：{e}", "err")
+                if d is not None and decider.autopilot:
+                    caps = {"assist": 0.8, "resist": 1.5, "zero": 1.5}   # 项目规则：assist 上限更严
+                    if d.applied != session.policy.name:
+                        commands.apply({"seq": session.seq, "op": "policy", "policy": d.applied,
+                                        "gain": d.gain if d.applied == "assist" else 0.3,
+                                        "max": caps.get(d.applied, 1.5)},
+                                       session=session, bridge=bridge, log=log)
+                    elif d.applied == "assist":
+                        # 已经在助力里：离散的"换不换策略"被门控管着，但连续的增益
+                        # 该跟着证据走。置信度不足时只准往下调——加力必须过门控。
+                        cur = session.policy.gain
+                        want = d.gain if d.confidence >= a.min_confidence else min(d.gain, cur)
+                        if abs(want - cur) >= 0.05:
+                            arrow = "下调" if want < cur else "上调"
+                            log(f"助力增益{arrow} {cur:.2f} → {want:.2f}"
+                                f"（步态相似度变了，置信 {d.confidence:.2f}）", "ok")
+                            commands.apply({"seq": session.seq, "op": "policy",
+                                            "policy": "assist", "gain": want, "max": 0.8},
+                                           session=session, bridge=bridge, log=log)
 
             # 命令：文件与网页两条来源，同一个分发器
             c = read_cmd_file(session.seq)
@@ -222,7 +286,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                     max_torque=session.policy.max_torque, hz=bridge.stream_hz(),
                     work_J=stats["work"], tripped=bridge.tripped,
                     legs_offline=bridge.legs_offline, reconnects=bridge.n_reconnects,
-                    memory=None if memory is None else memory.snapshot())
+                    memory=None if memory is None else memory.snapshot(),
+                    decision=None if decider is None else decider.snapshot())
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(STATUS_FILE, status.full_snapshot(
@@ -233,6 +298,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     finally:
         print("DISABLE ->", bridge.disable(), flush=True)
         bridge.close()
+        if decider is not None:
+            print(f"直觉层：决策 {decider.n_decisions} 次，其中 {decider.n_held} 次因置信度不足"
+                  f"保持原状，{decider.n_applied} 次自动下发", flush=True)
         if memory is not None:               # 把这次会话沉淀下去再走
             memory.note("会话结束", "success", payload={
                 "frames": stats["n"], "work_J": round(stats["work"], 3),

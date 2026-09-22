@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "evomap-genes",
     "fly-reflex",
+    "jev-decide",
     "numpy>=2.5.3",
     "pyserial>=3.5",
     "sim2real-actuator",
@@ -21,3 +22,4 @@ dev = [
 sim2real-actuator = { git = "https://github.com/OwenZhao9/sim2real-actuator", rev = "v0.1.0" }
 fly-reflex = { git = "https://github.com/OwenZhao9/fly-reflex", rev = "v0.1.0" }
 evomap-genes = { git = "https://github.com/OwenZhao9/evomap-genes", rev = "v0.1.1" }
+jev-decide = { git = "https://github.com/OwenZhao9/jev-decide", rev = "v0.1.1" }
