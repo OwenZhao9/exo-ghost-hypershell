@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import atexit
 import csv
+import sys
 import glob
 import math
 import os
@@ -54,19 +55,28 @@ class Sample:
     cmd_r: float = 0.0
 
 
-PORT_GLOBS = (
-    "/dev/cu.usbserial*",      # 实测：外骨骼是 Silicon Labs CP2102N USB-UART 桥，macOS 自带驱动给的名字
-    "/dev/cu.SLAB_USBtoUART*", # 装了 SiLabs 官方 VCP 驱动时的名字
-    "/dev/cu.usbmodem*",       # 原生 USB CDC 设备
+# 外骨骼内部是 Silicon Labs CP2102N USB-UART 桥（VID 0x10C4 / PID 0xEA60）
+PORT_GLOBS_DARWIN = (
+    "/dev/cu.usbserial*",       # macOS 自带 AppleUSBSLCOM 驱动给的名字
+    "/dev/cu.SLAB_USBtoUART*",  # 装了 SiLabs 官方 VCP 驱动时的名字
+    "/dev/cu.usbmodem*",        # 原生 USB CDC 设备
 )
+PORT_GLOBS_LINUX = (
+    "/dev/exo",                     # deploy/setup.sh 装的 udev 规则给的固定别名（最稳）
+    "/dev/serial/by-id/*CP2102*",   # 按芯片 ID 找，多设备时不会认错
+    "/dev/serial/by-id/*Silicon_Labs*",
+    "/dev/ttyUSB*",                 # cp210x 驱动给的名字（树莓派 / 香橙派 / 一般 Linux）
+    "/dev/ttyACM*",                 # 原生 USB CDC 设备
+)
+PORT_GLOBS = PORT_GLOBS_DARWIN if sys.platform == "darwin" else PORT_GLOBS_LINUX
 
 
 def find_port() -> Optional[str]:
-    """用 cu. 不用 tty.（tty. 会等载波信号阻塞）"""
+    """macOS 用 cu. 不用 tty.（tty. 会等载波信号阻塞）；Linux 优先按 by-id 精确匹配。"""
     for g in PORT_GLOBS:
         cands = sorted(glob.glob(g))
         if cands:
-            return cands[0]
+            return os.path.realpath(cands[0]) if ("by-id" in g or g == "/dev/exo") else cands[0]
     return None
 
 
@@ -149,7 +159,14 @@ class ExoBridge:
             self.port = find_port()
         if self.port is None:
             raise RuntimeError("没找到串口（/dev/cu.usbserial* / usbmodem*）：检查外骨骼是否开机、USB 线是否能传数据")
-        self.ser = serial.Serial(self.port, self.baud, timeout=0.05, write_timeout=0.2)
+        try:
+            self.ser = serial.Serial(self.port, self.baud, timeout=0.05, write_timeout=0.2)
+        except serial.SerialException as e:
+            if sys.platform != "darwin" and "Permission denied" in str(e):
+                raise RuntimeError(
+                    f"打不开 {self.port}：权限不足。把自己加入 dialout 组后重新登录：\n"
+                    f"  sudo usermod -aG dialout $USER   然后重启或重新登录") from e
+            raise
         time.sleep(0.05)
         self.ser.reset_input_buffer()
         self._stop.clear()
