@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import queue
 import time
 from typing import Optional
@@ -17,6 +18,7 @@ from bridge.exo import ExoBridge
 from bridge.protocol import DPS_SATURATION
 from control.safety import PROFILES
 from runtime import commands, events, status
+from runtime.journal import Journal
 from runtime.session import Session
 from tools.webhub import WebHub, lan_ip
 
@@ -90,10 +92,13 @@ def main(argv: Optional[list[str]] = None) -> None:
     decider = None
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
 
-    def log(msg: str, level: str = "info") -> None:
+    journal = Journal()          # 路径要等 ENABLE 之后才知道，见下面 set_path
+
+    def log(msg: str, level: str = "info", kind: str = "note", **fields) -> None:
         print(f"  [{time.strftime('%H:%M:%S')}] {msg}", flush=True)
         if hub:
             hub.push_event(msg, level)
+        journal.write(kind, msg=msg, level=level, **fields)
 
     # ---------- 逐帧回调（跑在串口读线程里，要快） ----------
     def on_sample(s) -> None:
@@ -141,10 +146,15 @@ def main(argv: Optional[list[str]] = None) -> None:
             import control.policies as P
             session.policy = P.make_policy("zero", 0.0, 1.5)
         msg, level = events.describe(ev)
-        log(msg, level)
+        log(msg, level, kind="event", event=ev)
         if memory is not None:               # 出了事先去翻以前踩过的坑
             memory.note(f"设备事件：{ev}", "partial", payload={"event": ev})
             memory.recall_for_event(ev)
+
+    def run_cmd(c: dict, who: str) -> None:
+        """所有命令都从这里走：先记流水（谁下的、下了什么），再交给分发器。"""
+        journal.write("command", by=who, cmd=dict(c))
+        commands.apply(c, session=session, bridge=bridge, log=log)
 
     bridge.on_event(on_event)
 
@@ -158,7 +168,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                 log(f"回忆「{r.query}」：库里没有相关经验{extra}", "warn")
                 return
             top = r.hits[0]
-            log(f"回忆「{r.query}」→ {top.asset.title}（相似度 {top.score:.2f}）", "ok")
+            log(f"回忆「{r.query}」→ {top.asset.title}（相似度 {top.score:.2f}）", "ok",
+                kind="recall", recall=r.to_dict())
             for i, step in enumerate(getattr(top.asset, "strategy_steps", ())[:4], 1):
                 log(f"    {i}. {step}")
 
@@ -183,7 +194,7 @@ def main(argv: Optional[list[str]] = None) -> None:
                 log(f"{head} → 自动切换到 {d.applied}", "ok")
             else:
                 log(f"{head} → 建议切到 {d.applied}（自动驾驶未开，不下发）")
-            log(f"    依据：{d.why}")
+            log(f"    依据：{d.why}", kind="decision", decision=d.to_dict())
 
         decider = GhostDecider(period_s=a.decide_period, min_confidence=a.min_confidence,
                                autopilot=a.autopilot, on_decision=on_decision)
@@ -211,6 +222,13 @@ def main(argv: Optional[list[str]] = None) -> None:
         snap = memory.snapshot()
         print(f"经验库 {a.memory_db}：继承了 {snap['inherited']} 条经验"
               f"（本次新播种 {snap['seeded']} 条）", flush=True)
+    if bridge.log_path:          # CSV 在 ENABLE 时才打开，流水跟它同名不同后缀
+        journal.set_path(os.path.splitext(bridge.log_path)[0] + ".jsonl")
+    journal.write("session", phase="start", profile=prof.name, body=a.body,
+                  limit=a.limit, ramp=a.ramp, autopilot=a.autopilot,
+                  csv=bridge.log_path, version=bridge.version())
+    if journal.path:
+        print(f"会话流水：{journal.path}（交付单用它生成）", flush=True)
     print(status.HEADER, flush=True)
 
     last_print = 0.0
@@ -242,10 +260,9 @@ def main(argv: Optional[list[str]] = None) -> None:
                 if d is not None and decider.autopilot:
                     caps = {"assist": 0.8, "resist": 1.5, "zero": 1.5}   # 项目规则：assist 上限更严
                     if d.applied != session.policy.name:
-                        commands.apply({"seq": session.seq, "op": "policy", "policy": d.applied,
-                                        "gain": d.gain if d.applied == "assist" else 0.3,
-                                        "max": caps.get(d.applied, 1.5)},
-                                       session=session, bridge=bridge, log=log)
+                        run_cmd({"seq": session.seq, "op": "policy", "policy": d.applied,
+                                 "gain": d.gain if d.applied == "assist" else 0.3,
+                                 "max": caps.get(d.applied, 1.5)}, "ghost")
                     elif d.applied == "assist":
                         # 已经在助力里：离散的"换不换策略"被门控管着，但连续的增益
                         # 该跟着证据走。置信度不足时只准往下调——加力必须过门控。
@@ -255,17 +272,16 @@ def main(argv: Optional[list[str]] = None) -> None:
                             arrow = "下调" if want < cur else "上调"
                             log(f"助力增益{arrow} {cur:.2f} → {want:.2f}"
                                 f"（步态相似度变了，置信 {d.confidence:.2f}）", "ok")
-                            commands.apply({"seq": session.seq, "op": "policy",
-                                            "policy": "assist", "gain": want, "max": 0.8},
-                                           session=session, bridge=bridge, log=log)
+                            run_cmd({"seq": session.seq, "op": "policy",
+                                     "policy": "assist", "gain": want, "max": 0.8}, "ghost")
 
             # 命令：文件与网页两条来源，同一个分发器
             c = read_cmd_file(session.seq)
             if c:
                 session.seq = c["seq"]
-                commands.apply(c, session=session, bridge=bridge, log=log)
+                run_cmd(c, "cli")
             while not cmdq.empty():
-                commands.apply(cmdq.get(), session=session, bridge=bridge, log=log)
+                run_cmd(cmdq.get(), "web")
 
             # 每秒一行状态
             if now - last_print >= 1.0:
@@ -297,6 +313,12 @@ def main(argv: Optional[list[str]] = None) -> None:
     except KeyboardInterrupt:
         print("\nCtrl-C", flush=True)
     finally:
+        journal.write("session", phase="end", frames=stats["n"],
+                      work_J=round(stats["work"], 3), reconnects=bridge.n_reconnects,
+                      tripped=bridge.tripped,
+                      decisions=None if decider is None else decider.n_decisions,
+                      held=None if decider is None else decider.n_held,
+                      applied=None if decider is None else decider.n_applied)
         print("DISABLE ->", bridge.disable(), flush=True)
         bridge.close()
         if decider is not None:

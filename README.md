@@ -88,6 +88,17 @@ uv run python -m tools.ctl recall "串口找不到"         # 让 Ghost 主动�
 
 **自动驾驶默认关闭**：Ghost 只给建议，人决定采不采纳。
 
+跑完之后出一份交付单（本地 HTML，离线可看，不上传任何地方）：
+
+```bash
+uv run python -m tools.report --open
+```
+
+里面是六节：这次跑了什么 / Ghost 判了什么、哪些没被采纳 / 出了什么事它自己怎么处置的 /
+**什么没成、为什么** / 命令来自谁 / 实测包络。每条结论都只来自两个文件——
+逐帧传感器 CSV 和会话流水 JSONL，没有别的来源。人为注入的故障会被明确标出来，
+免得把"我们自己制造的异常"说成"设备出的问题"。
+
 ## 安全
 
 **任何力都必须缓慢加载**，这是项目的第一条规则（见 [docs/safety-rules.md](docs/safety-rules.md)）：
@@ -119,9 +130,10 @@ uv run python -m tools.ctl recall "串口找不到"         # 让 Ghost 主动�
 | `control/` | 档位参数（`profiles.py`）、规则翻译（`reflex_rules.py`）、安全监视器（`safety.py`）、控制策略（`policies.py`） |
 | `agent/` | 特征提取（`features.py`）、决策规则（`policy_rules.py`）、直觉层（`decide.py`）、经验层（`memory.py`）、经验数据（`capsules.py`） |
 | `runtime/` | 常驻服务（`service.py`）、命令分发、事件翻译、状态快照 |
+| `report/` | 会话交付单：`collect.py` 算数（纯）+ `render.py` 排版（纯） |
 | `tools/` | 命令行入口、验机与标定工具 |
 | `dashboard/` | `index.html` 结构 + `style.css` 配色 + `app.js` 曲线 + `ghost.js` 三层面板 |
-| `tests/` | 107 项：安全层逐帧回归基准、协议、运行时、义体、故障、经验、决策 |
+| `tests/` | 122 项：安全层逐帧回归基准、协议、运行时、义体、故障、经验、决策、交付单 |
 | `docs/` | 协议与实测笔记、安全规则、评分自评、方案说明 |
 | `data/samples/` | 标定与测量的样本数据 |
 
