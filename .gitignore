@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# 运行时产生的数据（每次 ENABLE 自动落盘，单个会话可达几十 MB）
+data/*.csv
+data/*.log
+data/cmd.json
+data/status.json
+!data/samples/
+
+# Claude Code 的本地工作配置，不属于项目交付物
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+AGENTS.md
+
+.DS_Store

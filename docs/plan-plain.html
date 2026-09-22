@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>外骨骼方案 · 小学生版</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#ffffff; --ink:#1c1c1a; --muted:#6b6b66; --line:#e3e2dc;
+    --accent:#0f6b5c; --accent-soft:#e6f2ef; --warn:#a4550a; --warn-soft:#fbeede;
+    --code-bg:#f0efeb; --th-bg:#f1f1ed; --term:#3b4a8a; --term-bg:#eceffa;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#141413; --panel:#1d1d1b; --ink:#ecece7; --muted:#a09f98; --line:#33332f;
+      --accent:#5fc2ad; --accent-soft:#1a2b27; --warn:#e8a05a; --warn-soft:#332417;
+      --code-bg:#242422; --th-bg:#262624; --term:#aab6f0; --term-bg:#22263a;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15.5px;line-height:1.8;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:940px;margin:0 auto;padding:40px 16px 80px}
+  header h1{font-size:28px;line-height:1.3;margin:0 0 6px}
+  header .meta{color:var(--muted);font-size:13px;margin:0 0 10px}
+  header .switch a{color:var(--accent)}
+  nav.toc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:22px 0 40px}
+  nav.toc h2{font-size:13px;margin:0 0 10px;color:var(--muted);font-weight:600;letter-spacing:.08em}
+  nav.toc ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 24px}
+  nav.toc a{color:var(--ink);text-decoration:none;display:flex;gap:10px;padding:3px 0}
+  nav.toc a:hover{color:var(--accent)}
+  nav.toc .n{color:var(--accent);font-variant-numeric:tabular-nums;min-width:2.2em;font-weight:600}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:13px;color:var(--muted);margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+  .legend .src{margin-left:0}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px 26px;margin-bottom:22px}
+  section h2{font-size:20px;margin:0 0 6px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  section h2 .num{color:var(--accent);font-size:13px;font-weight:700;letter-spacing:.06em}
+  .src{margin-left:auto;font-size:12px;font-weight:500;border-radius:999px;padding:1px 10px;white-space:nowrap;border:1px solid var(--line);color:var(--muted)}
+  .src.fact{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+  .src.mine{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+  .src.mix{color:var(--ink);border-color:var(--line);background:var(--bg)}
+  .lede{background:var(--accent-soft);border-left:3px solid var(--accent);padding:12px 14px;border-radius:0 6px 6px 0;margin:12px 0 20px}
+  .lede b{font-weight:600}
+  h3{font-size:15px;margin:22px 0 8px}
+  p{margin:8px 0}
+  .t{display:inline-block;font-size:.82em;line-height:1.5;color:var(--term);background:var(--term-bg);border-radius:4px;padding:0 6px;margin:0 2px;vertical-align:baseline;white-space:nowrap}
+  table{width:100%;border-collapse:collapse;margin:10px 0 6px;font-size:14.5px}
+  th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{background:var(--th-bg);font-weight:600;white-space:nowrap}
+  td:first-child{white-space:nowrap;font-weight:500}
+  tr:last-child td{border-bottom:none}
+  ul,ol{margin:6px 0 6px;padding-left:1.4em}
+  li{margin:4px 0}
+  code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.92em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+  pre{background:var(--code-bg);padding:14px 16px;border-radius:8px;overflow:auto;font-size:13px;line-height:1.55;margin:10px 0}
+  pre code{background:none;padding:0}
+  blockquote{margin:10px 0;padding:12px 16px;border-left:3px solid var(--line);background:var(--bg);border-radius:0 6px 6px 0}
+  .note{background:var(--warn-soft);border-left:3px solid var(--warn);padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0}
+  .muted{color:var(--muted)}
+  details{border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin:10px 0}
+  summary{cursor:pointer;font-weight:600}
+  footer{color:var(--muted);font-size:12px;margin-top:30px;text-align:center}
+  @media print{body{background:#fff;color:#000}section,nav.toc{border:none;padding:0 0 16px;page-break-inside:avoid}.wrap{padding:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>外骨骼方案 · 小学生版</h1>
+  <p class="meta">EvoTavern 进化酒馆黑客松 · 深圳站 &nbsp;|&nbsp; 2026-09-21 → 09-24 &nbsp;|&nbsp; 更新：09-22（第 2 天）</p>
+  <p class="switch">这一页把技术版用大白话重讲一遍。蓝色小标签 <span class="t">专有名词 · English</span> 是大人们的叫法，跟工程师说话、上网搜的时候用它。技术版在这里：<a href="plan.html">plan.html</a></p>
+</header>
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s00"><span class="n">00</span>先说清楚：代码不烧进机器</a></li>
+    <li><a href="#s01"><span class="n">01</span>这是个什么比赛</a></li>
+    <li><a href="#s02"><span class="n">02</span>题目让我们做什么</a></li>
+    <li><a href="#s03"><span class="n">03</span>这台机器怎么跟电脑说话</a></li>
+    <li><a href="#s04"><span class="n">04</span>VOFA+ 是个什么软件</a></li>
+    <li><a href="#s05"><span class="n">05</span>我们要做的东西：AI 教练</a></li>
+    <li><a href="#s06"><span class="n">06</span>程序分几层、怎么保证安全</a></li>
+    <li><a href="#s07"><span class="n">07</span>用哪些工具来做</a></li>
+    <li><a href="#s08"><span class="n">08</span>机器到手先做的 6 件事</a></li>
+    <li><a href="#s09"><span class="n">09</span>每天干什么</a></li>
+    <li><a href="#s10"><span class="n">10</span>评委来了怎么演 7 分钟</a></li>
+    <li><a href="#s11"><span class="n">11</span>要去问 Hypershell 的问题</a></li>
+    <li><a href="#s12"><span class="n">12</span>要带的东西</a></li>
+    <li><a href="#s13"><span class="n">13</span>代码文件夹长什么样</a></li>
+    <li><a href="#s14"><span class="n">14</span>名词表</a></li>
+  </ol>
+  <div class="legend">
+    <span>来源标签：</span>
+    <span class="src fact">文档事实</span><span>比赛文件、Hypershell 文件里白纸黑字写的</span>
+    <span class="src mine">我的建议</span><span>我想出来的做法，文件里没有</span>
+    <span class="src mix">事实 + 建议</span><span>两种都有</span>
+  </div>
+</nav>
+
+
+<!-- 00 -->
+<section id="s00">
+  <h2><span class="num">00</span>先说清楚：代码不烧进机器<span class="src fact">文档事实 · Hypershell 说明书</span></h2>
+  <p class="lede"><b>我们不往外骨骼里烧任何代码。</b>机器里的程序<span class="t">固件 · Firmware 2.9.99.1</span>是 Hypershell 写好锁死的，我们没有也不需要烧录工具。<b>我们写的所有代码都在自己的电脑上跑</b>，电脑通过那根 USB 线，每秒 200 次给机器发"左腿用多大劲、右腿用多大劲"，机器每秒 200 次把身体数据发回来。机器只负责"听话出力 + 汇报数据"，脑子全在电脑上。</p>
+  <table>
+    <tr><th>问题</th><th>回答</th></tr>
+    <tr><td>要不要烧录 / 刷机？</td><td>不要。也没有这个接口。</td></tr>
+    <tr><td>代码放哪？</td><td>你的 Mac 上，用 Python 运行。</td></tr>
+    <tr><td>怎么"装"到机器上？</td><td>不用装。插上 USB 线，运行电脑上的程序，程序对机器说 <code>ENABLE</code>，就开始了。</td></tr>
+    <tr><td>拔了线会怎样？</td><td>0.1 秒后机器自动松劲，回到"没人指挥"的状态。这就是为什么拔线 = 急停。</td></tr>
+    <tr><td>最像什么？</td><td>像用电脑当遥控器操控一辆遥控车：车里的芯片是厂家的，你只是在电脑上不停地发"前进 / 转弯"。</td></tr>
+    <tr><td>摊位上要一直连着电脑？</td><td>是。电脑（或者一台迷你主机）必须一直用线连着机器；断了就没劲。</td></tr>
+  </table>
+</section>
+
+<!-- 01 -->
+<section id="s01">
+  <h2><span class="num">01</span>这是个什么比赛<span class="src fact">文档事实 · 选手指南</span></h2>
+  <p class="lede">这是一个四天的<b>"限时造东西"比赛</b><span class="t">黑客松 · Hackathon</span>。场馆每晚 8 点锁门、早上 8 点开门，所以真正能在里面干活的时间只有大约 <b>27 小时</b>。最后一天，30 个评委像逛庙会一样一个摊位一个摊位地看<span class="t">游园评审</span>，在你面前只停 <b>7 分钟</b>。所以要做一个评委<b>能亲手玩</b>的东西，光放幻灯片<span class="t">PPT</span>不行。</p>
+
+  <h3>重要时间</h3>
+  <table>
+    <tr><th>什么时候</th><th>发生什么</th><th>对我们意味着什么</th></tr>
+    <tr><td>9/21 晚 8 点</td><td>定队伍、定题目</td><td>已经过了，我们选的是"原生 Agent"这道题</td></tr>
+    <tr><td>每晚 8 点 → 早 8 点</td><td>场馆锁门</td><td>第 2、3 天各 12 小时，第 4 天上午 3 小时</td></tr>
+    <tr><td>9/22 下午 4–5 点</td><td>这道题的辅导课<span class="t">Workshop</span></td><td>带着问题去（见 11）</td></tr>
+    <tr><td>9/23 上午 10–12 点、下午 3–5 点</td><td>导师到处转、给建议<span class="t">导师巡场</span></td><td>抓住 Hypershell 的人看我们的程序</td></tr>
+    <tr><td>9/23 下午 1 点半起</td><td>观众可以进来逛<span class="t">Open Hour</span></td><td>找真人试穿，攒数据</td></tr>
+    <tr><td>9/23 下午 2–4 点</td><td>嘉宾演讲，其中有 Hypershell 的工程师曾泓炳</td><td>必须去听</td></tr>
+    <tr><td>9/24 上午 11 点</td><td>作品截止，网站关闭<span class="t">封板</span></td><td>过了就交不了</td></tr>
+    <tr><td>9/24 下午 1–4 点</td><td>评委逛摊位打分<span class="t">初赛</span></td><td>全队都要在</td></tr>
+    <tr><td>9/24 下午 5–6 点</td><td>每道题前 2 名上大舞台<span class="t">复赛 · 路演</span></td><td>7 分钟 = 讲 4 分钟 + 问 3 分钟</td></tr>
+    <tr><td>9/24 傍晚 6:45</td><td>发奖</td><td></td></tr>
+  </table>
+
+  <h3>怎么打分</h3>
+  <table>
+    <tr><th>规则</th><th>大白话</th></tr>
+    <tr><td>至少 3 个评委</td><td>少于 3 个评委看过你，就没有分数</td></tr>
+    <tr><td>10 分制取平均</td><td>每个评委打 0–10 分，加起来除以人数</td></tr>
+    <tr><td>7 分钟</td><td>4 分钟你讲，3 分钟评委问</td></tr>
+    <tr><td>要交的材料</td><td>项目介绍（讲清"做了什么、为什么做、怎么做"）、代码仓库链接<span class="t">GitHub</span>、全队名单、选的题目、小红书笔记链接（可选）</td></tr>
+    <tr><td>官方提醒</td><td>"展示产品，不只是幻灯片"；评委走到你摊位前会先看你交的材料，链接必须全部能打开</td></tr>
+  </table>
+
+  <h3>奖品</h3>
+  <table>
+    <tr><th>奖</th><th>是什么</th><th>怎么得</th></tr>
+    <tr><td>全场第一</td><td>5 万元</td><td>所有题目一起比</td></tr>
+    <tr><td>这道题第一</td><td>一台 Hypershell 外骨骼</td><td>做得完整、有新意、现场表现好</td></tr>
+    <tr><td>评审团特别奖</td><td>2 千元</td><td>特别有创意或特别敢做</td></tr>
+    <tr><td>观众最喜欢</td><td>2 千元</td><td>观众投票</td></tr>
+    <tr><td>Token 用最多</td><td>一大包 AI 额度</td><td>24 小时内一个人用掉最多 AI 算力<span class="t">Token</span></td></tr>
+    <tr><td>小红书奖</td><td>流量扶持</td><td>个人参加、单独评，9/22 晚 11:59 截止统计</td></tr>
+  </table>
+
+  <h3>主办方给的东西</h3>
+  <ul>
+    <li><b>AI 算力额度</b><span class="t">Token · 调用大模型 LLM 的"体力值"</span>：EvoMap 提供，要先填表登记：<code>https://ycnkznjbwrrg.feishu.cn/share/base/form/shrcn0Q9syDDl2p2rwSX4dMvtSh</code></li>
+    <li>技术问题找选手群或 <code>haidi@evomap.ai</code>；他们的 AI 助手快捷键 <code>⌘⇧U</code><span class="t">EvoX Agent</span></li>
+    <li>现场有<b>有线网</b>，网口是常见的方口<span class="t">RJ45</span>，要自己带转接头；<b>别开手机热点</b>，会把大家的网挤爆</li>
+  </ul>
+</section>
+
+<!-- 02 -->
+<section id="s02">
+  <h2><span class="num">02</span>题目让我们做什么<span class="src mix">原题是文档事实 · 拆解是我的建议</span></h2>
+  <p class="lede">出题的公司叫 <b>Hypershell</b>，他们做<b>穿在腰和大腿上的助力机器</b><span class="t">外骨骼 · Exoskeleton</span>，他们也是评委。题目的意思是：造一个<b>有名字、有性格的 AI 小助手</b><span class="t">Agent · 智能体</span>，给它一件<b>真实的活儿</b>去干。它要会用工具、遇到问题会自己想办法、会从别人的经验里学，最后<b>交作业</b>，而且要能<b>证明作业真的做对了</b><span class="t">可验证 · Verifiable</span>。</p>
+
+  <h3>题目原话</h3>
+  <blockquote>「Hypershell」向你提问：给 Ghost 一个身份，再交给它一项真实任务。个人助理、企业工作流、研究、教育、内容与城市服务，都有等待解决的具体问题。让 Agent 搜索、继承并调用网络中已经验证的经验，使用工具、处理异常，完成任务。你需要展示它交付了什么，以及这些结果如何被验证。</blockquote>
+  <p class="muted">选题指引里还有一句："致敬攻壳机动队，让 ghost 登陆义体外骨骼。"Ghost 是《攻壳机动队》里"灵魂"的意思，义体是机器身体。Hypershell 鼓励（不强制）用他们的外骨骼，并提供机器和说明书。</p>
+
+  <h3>题目里的 6 个要求，翻译一下</h3>
+  <table>
+    <tr><th>题目说</th><th>大白话</th><th>我们怎么做</th></tr>
+    <tr><td>身份<span class="t">Identity · Persona</span></td><td>给 AI 起名字、定性格、让它记得每个人</td><td>一个住在外骨骼里的教练，记得每个穿过它的人</td></tr>
+    <tr><td>真实任务<span class="t">Task</span></td><td>不是聊天，是干一件具体的活</td><td>带一个人走 2–3 分钟、上几级楼梯，然后交报告</td></tr>
+    <tr><td>使用工具<span class="t">工具调用 · Tool Use</span></td><td>AI 能按"按钮"做事，不只是说话</td><td>它有 6 个按钮：换用劲方式、读身体数据、说话、提问、查经验、存经验</td></tr>
+    <tr><td>处理异常<span class="t">Exception Handling</span></td><td>出意外时有预案，不是死机</td><td>线掉了、人绊了一下、电快没了、人说"停"，每种都有动作</td></tr>
+    <tr><td>继承经验<span class="t">EvoMap · 经验网络</span></td><td>先看看别人以前怎么做的，做完把自己的经验也留下</td><td>开始前查"以前别人怎么调劲"，结束后存回去</td></tr>
+    <tr><td>交付并验证<span class="t">Delivery &amp; Verification</span></td><td>交作业，还要能证明作业是对的</td><td>一份报告，每句话都能点开看当时的数据曲线，另一个"检查员 AI"签字</td></tr>
+  </table>
+</section>
+
+<!-- 03 -->
+<section id="s03">
+  <h2><span class="num">03</span>这台机器怎么跟电脑说话<span class="src fact">文档事实 · Hypershell 说明书 + 协议附件</span></h2>
+  <p class="lede">机器叫 <b>Hypershell X MaxS</b>，绑在腰上和两条大腿上，<b>两个大腿根</b><span class="t">髋关节 · Hip joint</span>各有一个电机。它用一根 USB 线跟电脑说话<span class="t">串口 · Serial / USB CDC</span>。它<b>每秒 200 次</b>告诉电脑"我现在什么状态"<span class="t">数据流 · 200 Hz 遥测 Telemetry</span>，每次 15 个数字；电脑可以<b>每秒 200 次</b>告诉它"左腿用多大劲、右腿用多大劲"<span class="t">力矩 · Torque，单位牛·米 Nm</span>。电脑 <b>0.1 秒不说话，它就自动松劲</b><span class="t">看门狗 · Watchdog</span>。它<b>没有"省力档 / 运动档"</b>这种现成按钮，只有"用多大劲"一个旋钮——所以"什么时候该用多大劲"要我们自己写<span class="t">控制器 · Controller</span>。</p>
+
+  <h3>机器本身</h3>
+  <table>
+    <tr><th>项目</th><th>内容</th></tr>
+    <tr><td>型号</td><td>Hypershell X MaxS 髋关节助行外骨骼</td></tr>
+    <tr><td>机器里的程序版本</td><td>2.9.99.1，比赛专用<span class="t">固件 · Firmware</span></td></tr>
+    <tr><td>开放给我们什么</td><td>① 它的所有身体数据 ② 直接控制电机用多大劲</td></tr>
+    <tr><td>怎么连</td><td>USB 线，Mac 不用装驱动，插上就会出现一个叫 <code>/dev/cu.usbmodem…</code> 的"门"<span class="t">设备节点</span></td></tr>
+    <tr><td>说明书在哪</td><td>飞书文档 <code>https://autogame.feishu.cn/docx/L49jdUGenooxdxx3ci9cB94Fnle</code>，协议在附件《深圳黑客松2026串口协议.docx》（3 页）</td></tr>
+    <tr><td>内部结构（了解即可）</td><td>左腿是"主板"，右腿是"从板"，两块板之间用一种叫 CAN 的线连着<span class="t">CAN 总线</span>；左右腿的劲互不影响</td></tr>
+  </table>
+
+  <h3>说话的规矩</h3>
+  <table>
+    <tr><th>项目</th><th>规定</th><th>大白话</th></tr>
+    <tr><td>说话速度</td><td>3,000,000<span class="t">波特率 · Baud rate</span></td><td>每秒能传 300 万个"点点"，很快</td></tr>
+    <tr><td>一句话怎么算完</td><td>回车结尾<span class="t">换行符 · \n</span></td><td>一行就是一句话</td></tr>
+    <tr><td>机器汇报频率</td><td>每秒 200 次<span class="t">200 Hz</span></td><td>它的传感器本来就是每秒更新 200 次</td></tr>
+    <tr><td>我们发命令频率</td><td>建议每秒 200 次，最少每秒 10 次</td><td>要一直不停地说</td></tr>
+    <tr><td>看门狗</td><td>100 毫秒没新命令就松劲</td><td>0.1 秒不说话它就当你走了，自动松手——这是保命的</td></tr>
+    <tr><td>劲的上限</td><td>±7.5 牛·米<span class="t">Nm</span></td><td>大概相当于在离关节 30 厘米的地方推 2.5 公斤的力；机器自己会卡住，超过不认</td></tr>
+    <tr><td>开机顺序</td><td>先插线 → 先开机 → 再发"开始"</td><td>而且插着线<b>不会充电</b>，电池要单独充</td></tr>
+  </table>
+
+  <h3>能说的 5 句话</h3>
+  <table>
+    <tr><th>我们说</th><th>它回</th><th>意思</th></tr>
+    <tr><td><code>PING</code></td><td><code>PONG</code></td><td>"在吗？"—"在！"</td></tr>
+    <tr><td><code>VERSION</code></td><td><code>OK,VERSION,2.9.99.1</code></td><td>"你是哪个版本？"</td></tr>
+    <tr><td><code>ENABLE</code></td><td><code>OK,ENABLE</code></td><td>"开始干活，开始每秒汇报 200 次"</td></tr>
+    <tr><td><code>DISABLE</code></td><td><code>OK,DISABLE</code></td><td>"松劲，别汇报了"</td></tr>
+    <tr><td><code>T,左,右</code></td><td><code>OK,T,左,右</code></td><td>"左腿用这么大劲，右腿用这么大劲"，范围 ±7.5</td></tr>
+  </table>
+  <p>说错话它会回：<code>ERR,NOT_ENABLED</code>（还没说"开始"呢）、<code>ERR,T_FORMAT</code>（格式写错了）、<code>ERR,UNKNOWN</code>（听不懂）。</p>
+
+  <h3>它每秒汇报 200 次的 15 个数字</h3>
+  <pre><code>S:&lt;ms&gt;,&lt;pitch&gt;,&lt;roll&gt;,&lt;yaw&gt;,&lt;gx&gt;,&lt;gy&gt;,&lt;gz&gt;,&lt;ax&gt;,&lt;ay&gt;,&lt;az&gt;,&lt;kPa&gt;,&lt;Ldeg&gt;,&lt;Rdeg&gt;,&lt;Ldps&gt;,&lt;Rdps&gt;</code></pre>
+  <table>
+    <tr><th>数字</th><th>大白话</th><th>专有名词</th></tr>
+    <tr><td>ms</td><td>机器自己的秒表读数</td><td><span class="t">时间戳 · Timestamp，毫秒</span></td></tr>
+    <tr><td>pitch, roll, yaw</td><td>腰是前倾后仰、左歪右歪、还是在转身</td><td><span class="t">姿态角 / 欧拉角 · Euler angles，度</span></td></tr>
+    <tr><td>gx, gy, gz</td><td>腰在转的时候转得多快</td><td><span class="t">陀螺仪 · Gyroscope，角速度 °/s</span></td></tr>
+    <tr><td>ax, ay, az</td><td>腰被晃得多猛</td><td><span class="t">加速度计 · Accelerometer，单位 g</span></td></tr>
+    <tr><td>kPa</td><td>空气压力——楼上比楼下低一点点，能算出爬了多高</td><td><span class="t">气压计 · Barometer，千帕</span></td></tr>
+    <tr><td>Ldeg, Rdeg</td><td>左腿、右腿现在抬到多少度</td><td><span class="t">关节角度 · Joint angle，来自编码器 Encoder</span></td></tr>
+    <tr><td>Ldps, Rdps</td><td>左腿、右腿正在摆多快</td><td><span class="t">关节角速度 · Angular velocity，°/s</span></td></tr>
+  </table>
+  <p class="muted">前面 10 个数字都来自腰上那个"平衡感芯片"<span class="t">IMU · 惯性测量单元</span>，后 4 个来自两条腿的电机。</p>
+
+  <h3>最简单的一次对话（说明书原文）</h3>
+  <pre><code>PING
+ENABLE
+T,1.5,-1.5
+T,1.5,-1.5
+...
+DISABLE</code></pre>
+  <p>先问"在吗"，再说"开始"，然后不停地说"用劲、用劲、用劲"，最后说"松劲"。</p>
+  <div class="note">说明书<b>没写</b>"角度数字变大是往前抬腿还是往后蹬"，也没写"左右腿的数字方向是不是一样"。这决定我们所有公式的正负号，机器到手要自己摆一摆腿试出来<span class="t">符号约定 · Sign convention / 标定 · Calibration</span>。</div>
+</section>
+
+<!-- 04 -->
+<section id="s04">
+  <h2><span class="num">04</span>VOFA+ 是个什么软件<span class="src mix">格式是文档事实 · 怎么用是我的判断</span></h2>
+  <p class="lede">VOFA+ 是一个电脑软件，像<b>给机器数据看的心电图机</b><span class="t">上位机 · 串口调试工具</span>。机器吐出来的一串串数字，它能立刻画成曲线；它还能摆几个按钮，点一下就给机器发一句话。Hypershell 的工程师自己就用它，所以说明书按它来写。我们只用它<b>前十分钟验机器</b>，它<b>不是</b>我们的控制器，它的插件也不用碰。</p>
+
+  <h3>基本情况</h3>
+  <table>
+    <tr><th>项目</th><th>内容</th></tr>
+    <tr><td>谁做的</td><td>国内一个开发者 2018 年起做的，原名"伏特加"；名字是伏特、欧姆、法拉、安培四个单位的首字母</td></tr>
+    <tr><td>版本 / 系统</td><td>1.3.10；有 Mac 版（还没下载）</td></tr>
+    <tr><td>三个基本概念</td><td><b>数据</b>：从机器那里收到的每一路数字（外骨骼的 15 个数字 = I0 到 I14）；<b>命令</b>：预先写好的一句话，绑在按钮上；<b>参数</b>：命令里留个空 <code>%f</code>，绑到滑条上可以发不同的数</td></tr>
+    <tr><td>它认的说话格式</td><td>"名字:数字,数字,数字" 然后换行<span class="t">FireWater 协议 · CSV 风格文本</span>。外骨骼说的 <code>S:…</code> 正好就是这个格式</td></tr>
+  </table>
+
+  <h3>我们怎么用它</h3>
+  <table>
+    <tr><th>用途</th><th>怎么做</th><th>行不行</th></tr>
+    <tr><td>验机器</td><td>串口选 3000000 → 协议选 FireWater → 发 ENABLE → 右边出现 I0–I14 → 把 I11、I12（左右腿角度）拖进曲线图 → 用手摆腿看曲线</td><td>行，十分钟搞定</td></tr>
+    <tr><td>发单句命令</td><td>命令绑按钮：PING、ENABLE、DISABLE</td><td>行</td></tr>
+    <tr><td>手动让它用劲</td><td>滑条绑 <code>T,%f,0</code></td><td>只能"抖一下"——它只在你拖滑条时发一次，0.1 秒后看门狗就松劲了。正好拿来验证看门狗真的在工作</td></tr>
+    <tr><td>看姿态</td><td>3D 立方体控件绑 pitch/roll/yaw</td><td>行，摊位上零代码的备用画面</td></tr>
+    <tr><td>当控制器</td><td>—</td><td><b>不行</b>，它不会一秒钟说 200 遍</td></tr>
+  </table>
+
+  <h3>插件</h3>
+  <p>它的插件商店里有 24 个小玩意（仪表盘、旋钮、摇杆、皮肤），都是 2021 年的，都是装饰品，没有一个能"定时反复发命令"。自己写插件要用 C++ 编译。<b>一分钟都不要花在上面。</b></p>
+</section>
+
+<!-- 05 -->
+<section id="s05">
+  <h2><span class="num">05</span>我们要做的东西：AI 教练<span class="src mine">我的建议</span></h2>
+  <p class="lede">做一个<b>住在外骨骼里的 AI 教练</b><span class="t">Agent · 智能体</span>，名字叫 <b>Ghost Coach</b>（也可以叫"塔奇克马教练"，那是《攻壳机动队》里的可爱机器人，主办方的合影墙就是它）。它能看懂你走路的数据，知道你在上楼还是走平地、累不累，自己决定"现在该帮你使劲还是给你加阻力"，并且<b>用嘴说出来为什么</b>。走完以后交一份报告，报告里每一句话都能点开看到证据。</p>
+
+  <h3>它由什么组成</h3>
+  <table>
+    <tr><th>部分</th><th>大白话</th><th>专有名词</th></tr>
+    <tr><td>身份</td><td>有名字、有声音、有性格，记得每个穿过它的人多高多重、想练什么、上次怎么样</td><td><span class="t">Persona · 记忆 Memory</span></td></tr>
+    <tr><td>任务</td><td>评委说一句目标——"让他上楼省点力" / "练腿，加阻力" / "左腿刚好，帮他走对称"——它带人走 2–3 分钟，交报告</td><td><span class="t">Task</span></td></tr>
+    <tr><td>看</td><td>把每秒 200 次的原始数字，总结成每秒 1 次的"体检指标"：走多快、腿抬多高、左右腿像不像、路是不是在往上、爬了多高、是不是累了</td><td><span class="t">感知 Perception · 特征提取 Feature extraction</span></td></tr>
+    <tr><td>想</td><td>每 5–10 秒看一次指标，决定用哪种"劲法"、用多大，每次改都说一句为什么</td><td><span class="t">决策 Decision · 策略 Policy · 增益 Gain</span></td></tr>
+    <tr><td>出意外</td><td>线掉了 → 机器自己松劲，改用手机的平衡感芯片继续记录；人绊了一下 → 最底层直接松劲，不等 AI；电快没了 → 缩短计划；人说"累了 / 停" → 立刻停</td><td><span class="t">异常处理 Exception handling · 降级 Fallback</span></td></tr>
+    <tr><td>学经验</td><td>开始前去 EvoMap 查"以前 70 公斤的人上楼用什么劲效果好"当参考；结束后把这次的存回去；大屏上写"参考了 N 条经验"</td><td><span class="t">经验继承 · EvoMap 检索/写入</span></td></tr>
+    <tr><td>交作业</td><td>一份报告：目标、每次改劲的时间和理由、各项指标；每条结论点开就是那一段的数据曲线；另一个"检查员 AI"核对后签字</td><td><span class="t">交付单 Ledger · 验证器 Verifier</span></td></tr>
+  </table>
+
+  <h3>报告里的数字怎么算出来（全部来自那 15 个数字）</h3>
+  <table>
+    <tr><th>指标</th><th>大白话</th><th>专有名词</th></tr>
+    <tr><td>走了几步、每分钟几步</td><td>腿角度的曲线一起一伏，数有几个"山峰"</td><td><span class="t">步频 Cadence · 峰值检测 Peak detection</span></td></tr>
+    <tr><td>左右腿像不像</td><td>左腿和右腿的山峰一样高、一样宽吗</td><td><span class="t">对称指数 Symmetry index · 活动度 ROM</span></td></tr>
+    <tr><td>爬了多高</td><td>气压变低了多少</td><td><span class="t">气压高度换算</span></td></tr>
+    <tr><td>机器帮你出了多少力</td><td>"用多大劲"乘以"腿摆多快"，一点一点加起来。因为劲是我们发的、摆多快是量到的，这个数评委没法怀疑</td><td><span class="t">机械功 Work · 焦耳 J · ∫τ·ω dt</span></td></tr>
+    <tr><td>有没有用</td><td>同一个人、同一段楼梯，一次固定用劲，一次让 AI 自己调，比一比</td><td><span class="t">对照实验 Control experiment · 基线 Baseline</span></td></tr>
+  </table>
+
+  <h3>跟评委说的一句话</h3>
+  <p>今天这台机器是"一个会用劲的电机"；装上 Ghost 之后它认识你、会随路况和你的状态调整、会解释自己在干什么，而且每个人的经验都会留给下一个穿它的人。</p>
+</section>
+
+<!-- 06 -->
+<section id="s06">
+  <h2><span class="num">06</span>程序分几层、怎么保证安全<span class="src mine">我的建议 · 只有 ±7.5 和 0.1 秒来自说明书</span></h2>
+  <p class="lede">程序像一栋楼，<b>每层各干各的</b>。一楼专门跟机器说话、每秒 200 次发命令、管安全<span class="t">设备桥 · Bridge</span>；二楼算"现在该用多大劲"，全是简单公式，<b>不用 AI</b>，因为 AI 反应太慢<span class="t">控制器 Controller · 实时 Real-time</span>；三楼是 AI 教练，它只管"换劲法"和"说话"，<b>绝不碰每秒 200 次那个循环</b><span class="t">Agent 运行时</span>；顶楼是报告和大屏幕<span class="t">验证器 · 仪表盘 Dashboard</span>。楼层之间用"内部电话"联系<span class="t">WebSocket</span>。</p>
+
+  <h3>分层图</h3>
+  <pre><code>外骨骼 ⇄ USB 线（每秒 300 万点点）
+   │
+[一楼 设备桥]   收 15 个数字、存成表格；每秒 200 次发"用劲"；安全闸；
+                还能"放录像"——把以前存的表格当成机器在说话（回放模式）
+   │
+[二楼 控制器]   每秒算 200 次：劲法 × 大小 → 左右腿的劲；顺便算体检指标
+   │  内部电话：每秒往上报 1 次指标 ↑ / 换劲法的命令往下传 ↓
+[三楼 AI 教练]  身份、记忆、决定、6 个按钮、出意外怎么办、听和说
+   │
+[顶楼]          报告 + 检查员    大屏幕：曲线、决定记录、急停按钮</code></pre>
+
+  <h3>三种"劲法"（AI 只能在这三种里选，大小有上限）</h3>
+  <table>
+    <tr><th>劲法</th><th>公式</th><th>大白话</th><th>安全吗</th></tr>
+    <tr><td><code>zero</code></td><td>劲 = 0</td><td>完全不使劲，只是量数据，看"没帮忙时你什么样"</td><td>最安全<span class="t">透明模式 · 基线 Baseline</span></td></tr>
+    <tr><td><code>resist(c)</code></td><td>劲 = −c × 腿摆多快</td><td>你腿摆得越快，它越往反方向拉一点，像<b>在水里走路</b>，用来练腿</td><td>很安全，因为它永远在"帮你刹车"，不会越推越快<span class="t">阻尼 · Damping</span>。走路时 c 取 0.5 大约就是 1–2 牛·米</td></tr>
+    <tr><td><code>assist(c)</code></td><td>劲 = +c × 腿摆多快</td><td>你腿往哪摆，它就往哪推一把，用来省力</td><td>要小心，因为它会"越推越快"<span class="t">负阻尼 · Negative damping</span>。所以 c 从 0.2 开始、把抖动磨平<span class="t">低通滤波 Low-pass</span>、小动作不推<span class="t">死区 Dead zone</span>、最多 2 牛·米。有时间再做"只在迈步那一下推"的高级版<span class="t">步态相位 Gait phase</span></td></tr>
+  </table>
+
+  <h3>安全闸（在一楼，AI 说什么都管不了它）</h3>
+  <ol>
+    <li>软件先把劲卡在 ±2 牛·米<span class="t">限幅 · Clamp</span>；机器自己的 ±7.5 只是最后一道保险</li>
+    <li>劲不能突然变大：每 0.05 秒最多变 0.2<span class="t">斜坡 · Ramp / Slew rate</span></li>
+    <li>腰突然一晃或一歪（像绊了一下）→ 立刻松劲并停机<span class="t">踉跄检测</span></li>
+    <li>键盘一键松劲；<b>拔线就是紧急停止</b><span class="t">急停 · E-stop</span>，因为 0.1 秒后机器自己会松</li>
+    <li>程序崩了、被关了，退出前都先发一句"松劲"<span class="t">atexit</span></li>
+    <li>AI 和"每秒说 200 遍"不放在同一个程序里<span class="t">多进程 · Multi-process</span>，AI 卡住了也不影响机器</li>
+  </ol>
+</section>
+
+<!-- 07 -->
+<section id="s07">
+  <h2><span class="num">07</span>用哪些工具来做<span class="src mine">我的建议 · Hypershell 说明书没规定任何工具</span></h2>
+  <p class="lede">这一节全是我选的。Hypershell 只规定了"怎么说话"（协议）、只推荐了 VOFA+ 看数据，没说要用什么语言什么工具。全部在<b>电脑上</b>写，不碰机器里的程序<span class="t">固件 · Firmware</span>。用 <b>Python</b>。表里标了"与外骨骼无关"的几行，是因为题目要求 AI 能对话才需要的，跟机器本身没关系。</p>
+
+  <table>
+    <tr><th>干什么用</th><th>选什么</th><th>大白话</th></tr>
+    <tr><td>写代码的语言</td><td>Python 3.11+，用 <code>uv</code> 管理</td><td>Python 是最好上手的语言；uv 是帮你装零件、管版本的小管家<span class="t">包管理器 · Package manager</span></td></tr>
+    <tr><td>跟机器说话</td><td>pyserial</td><td>Python 里专门管串口的现成零件<span class="t">库 · Library</span>；Mac 上机器的"门"叫 <code>/dev/cu.usbmodem…</code></td></tr>
+    <tr><td>每秒 200 次那个循环</td><td>单独一个线程或进程，每 5 毫秒转一圈</td><td>像一个专职的小人，只干"读一下、发一下"，别的都不管<span class="t">线程 Thread / 进程 Process · 定时 Timer</span></td></tr>
+    <tr><td>楼层之间通话</td><td>WebSocket</td><td>程序之间的内部电话线，大屏幕和 AI 都接这条线</td></tr>
+    <tr><td>算数</td><td>numpy + scipy</td><td>数学工具箱：磨平抖动、找山峰、算对称</td></tr>
+    <tr><td>存数据</td><td>CSV 文件；分析用 pandas</td><td>CSV 就是 Excel 能打开的纯文本表格；pandas 是操作表格的工具</td></tr>
+    <tr><td>AI 教练<br><span class="muted" style="font-weight:400">（与外骨骼无关）</span></td><td>Anthropic 的 Python SDK + tool use；模型用 Claude Sonnet 5（快）或 Opus 5（想得深）</td><td>SDK 是调用 Claude 的工具包<span class="t">Software Development Kit</span>；tool use 是让 AI 会"按按钮"<span class="t">工具调用 · Function calling</span>。主办方的 EvoMap 额度拿到后看能不能直接换个地址接上</td></tr>
+    <tr><td>听人说话<br><span class="muted" style="font-weight:400">（与外骨骼无关）</span></td><td>mlx-whisper（Mac 本地跑）</td><td>把说话变成文字<span class="t">语音识别 · ASR</span>，在电脑上自己跑，不靠现场的网</td></tr>
+    <tr><td>让 AI 开口<br><span class="muted" style="font-weight:400">（与外骨骼无关）</span></td><td>edge-tts；备用 Mac 自带 <code>say -v Tingting</code></td><td>把文字变成说话<span class="t">语音合成 · TTS</span>，不用申请任何账号</td></tr>
+    <tr><td>大屏幕</td><td>一个网页 + uPlot + WebSocket</td><td>uPlot 是专门画"很多条、刷得很快"的曲线的画图零件，每秒 200 × 15 个点不卡</td></tr>
+    <tr><td>调试时看数据</td><td>Rerun</td><td>一个"数据放大镜"，能拖时间轴一帧一帧看；摊位上不用它</td></tr>
+    <tr><td>验机器</td><td>VOFA+ 1.3.10</td><td>只用前十分钟</td></tr>
+    <tr><td>最简单的聊天窗口</td><td><code>python -m serial.tools.miniterm /dev/cu.usbmodem* 3000000</code></td><td>直接跟机器打字聊天；Mac 自带的 screen 不一定支持这么快的速度</td></tr>
+  </table>
+
+  <h3>第一条命令</h3>
+  <pre><code>uv init exo-ghost &amp;&amp; cd exo-ghost
+uv add pyserial numpy scipy pandas websockets anthropic edge-tts</code></pre>
+
+  <h3>明确不用的</h3>
+  <ul>
+    <li>ROS：机器人界的大操作系统，Mac 上装半天，我们用不上</li>
+    <li>Arduino / 单片机工具：那是改机器里程序用的，机器程序不归我们管</li>
+    <li>MATLAB：三种劲法就几行公式</li>
+    <li>Docker：装程序的"集装箱"，Mac 上串口穿不进去</li>
+    <li>VOFA+ 插件：要用 C++，白扔一天</li>
+  </ul>
+</section>
+
+<!-- 08 -->
+<section id="s08">
+  <h2><span class="num">08</span>机器到手先做的 6 件事<span class="src mine">我的建议</span></h2>
+  <p class="lede">机器刚到手，<b>先别穿</b>，放桌上试。全部通过之前不上人。</p>
+  <ol>
+    <li><b>不穿</b>，放桌上，两条腿的支架能自由摆动。插线，看电脑有没有认出它（出现 <code>/dev/cu.usbmodem…</code>）</li>
+    <li>说 <code>PING</code> 看它回不回 <code>PONG</code>；问 <code>VERSION</code> 看是不是 2.9.99.1；说 <code>ENABLE</code>，数一数是不是每秒 200 条汇报；录 10 秒不动的数据，看数字"抖不抖"<span class="t">噪声 · Noise</span>、"不动时是几"<span class="t">零位 · Zero offset</span></li>
+    <li>用手摆左右支架，记下：数字变大是<b>往前抬</b>还是<b>往后蹬</b>？左右腿方向<b>一样还是相反</b>？<span class="t">符号约定 · 标定</span></li>
+    <li>让左腿用 1 牛·米（持续发 <code>T,1.0,0</code> 一秒），看它往哪边动、角度数字怎么变；再让右腿用（<code>T,0,1.0</code>）。把方向记下来</li>
+    <li>突然停止发命令，看 0.1 秒内是不是自己松劲了<span class="t">看门狗测试</span></li>
+    <li>全部通过 → 穿上人 → 从最安全的"水里走路"（<code>resist(0.3)</code>）开始，再试轻轻推一把（<code>assist(0.2)</code>）</li>
+  </ol>
+  <p class="muted">第 2、3 步可以直接在 VOFA+ 里做；第 4、5 步要用我们自己写的小工具 <code>hold</code>，因为 VOFA+ 不会连续发。</p>
+</section>
+
+<!-- 09 -->
+<section id="s09">
+  <h2><span class="num">09</span>每天干什么<span class="src mix">时间点是文档事实 · 安排是我的建议</span></h2>
+  <p class="lede">第 2 天结束前必须有：<b>机器数据读得到 + 能放录像 + 桌面上三种劲法都跑通</b>。第 3 天做闭环、AI、报告。第 4 天上午只做稳定和打印。</p>
+  <table>
+    <tr><th>时段</th><th>干什么</th><th>做出来什么</th></tr>
+    <tr><td>第 2 天上午（9/22）</td><td>验机、一楼只读数据、录数据、做"放录像"功能</td><td>终端里每秒滚 200 行；第一份数据表格；角度方向写进说明文件</td></tr>
+    <tr><td>第 2 天下午 4–5 点</td><td>去上这道题的辅导课</td><td>问清 11 里的问题；拿到 EvoMap 的接口说明和额度</td></tr>
+    <tr><td>第 2 天下午到晚 8 点</td><td>三种劲法在桌上测；安全闸；hold 小工具</td><td>穿上人用"水里走路"走一次并录像</td></tr>
+    <tr><td>第 2 天晚上（场馆外）</td><td>用录好的数据开发 AI 层：性格、6 个按钮、报告模板</td><td>假数据能从头跑到报告</td></tr>
+    <tr><td>第 3 天上午（9/23）</td><td>真机闭环：指标 → AI → 换劲法 → 说话解释</td><td>上午 10–12 点导师转的时候演给 Hypershell 的人看</td></tr>
+    <tr><td>第 3 天下午</td><td>接 EvoMap、意外处理、大屏幕；下午 2 点听曾泓炳演讲；观众进来找人试穿</td><td>至少 3 个不同人的数据；一组对照实验</td></tr>
+    <tr><td>第 3 天晚上（场馆外）</td><td>报告打磨、录像兜底、路演稿</td><td>7 分钟脚本能完整跑一遍</td></tr>
+    <tr><td>第 4 天上午 9–11 点（9/24）</td><td>只做稳定性、打印、网站提交</td><td>11 点截止</td></tr>
+  </table>
+  <div class="note">拍板时间点：第 2 天晚 8 点前，如果"推一把"在人身上不稳，展示就只用"水里走路"和"不使劲"两种，"省力"留到讲的时候说"这是下一步"。别硬上。</div>
+</section>
+
+<!-- 10 -->
+<section id="s10">
+  <h2><span class="num">10</span>评委来了怎么演 7 分钟<span class="src mine">我的建议</span></h2>
+  <p class="lede">穿脱要一分多钟，所以<b>队友全程穿着</b>当"机器身体"，评委当"下命令的人"；最后一分钟才让评委自己试。</p>
+  <table>
+    <tr><th>时间</th><th>干什么</th><th>评委看到什么</th></tr>
+    <tr><td>0:00–0:30</td><td>一句话讲项目，队友已经穿好在等</td><td>大屏上每秒 200 次的曲线在滚</td></tr>
+    <tr><td>0:30–1:30</td><td>评委对 AI 说目标</td><td>AI 复述计划，说"我参考了 EvoMap 上 N 条经验"</td></tr>
+    <tr><td>1:30–3:30</td><td>队友走一段 + 上几级台阶</td><td>曲线和"决定记录"实时更新，AI 每次改劲都说为什么</td></tr>
+    <tr><td>3:30–4:00</td><td>故意制造意外（拔线 / 突然停步）</td><td>劲立刻归零，AI 汇报并改用备用方案</td></tr>
+    <tr><td>4:00–5:00</td><td>报告出来</td><td>评委随便点一条结论，看到对应那段数据；检查员 AI 签字</td></tr>
+    <tr><td>5:00–7:00</td><td>评委自己穿上试一分钟，或者问答</td><td>安全三句话：劲有上限、不许突变、绊倒就松</td></tr>
+  </table>
+  <p><b>兜底：</b>提前录好一次完整的数据 + 视频，机器万一掉链子，用"放录像"走同一套程序，屏幕上一模一样<span class="t">回放 · Replay</span>。</p>
+</section>
+
+<!-- 11 -->
+<section id="s11">
+  <h2><span class="num">11</span>要去问 Hypershell 的问题<span class="src mine">我的建议</span></h2>
+  <p class="lede">说明书已经回答了"怎么连、有哪些数据、怎么控制"。剩下的都是<b>"人穿着的时候"</b>的问题，辅导课和导师转场时问。</p>
+  <ol>
+    <li>角度数字变大是抬腿还是后蹬？左右腿方向一样吗？（自己能测，问了更快）</li>
+    <li>人穿着时你们建议的劲上限和变化速度是多少？我们打算演示用 ±2 牛·米</li>
+    <li>你们自己的助力是"迈步那一下推"还是"腿摆多快推多大"？"腿摆多快推多大"会不会越推越快抖起来？</li>
+    <li>一直使劲的话电池能撑多久？能边用边充吗？（说明书说插着线不充电）</li>
+    <li>机器能借到第 4 天摊位上吗？有备用机吗？</li>
+    <li>官方手机 App 的蓝牙同时连着，会不会跟我们抢控制？</li>
+    <li>评委打分那天你们的工程师在不在？能不能提前看一眼我们的程序？</li>
+    <li>EvoMap：查经验、存经验的接口长什么样？AI 模型的接口跟 OpenAI 的格式一样吗？</li>
+  </ol>
+</section>
+
+<!-- 12 -->
+<section id="s12">
+  <h2><span class="num">12</span>要带的东西<span class="src mine">我的建议</span></h2>
+  <p class="lede">最常见的"机器没反应"，是拿了根<b>只能充电不能传数据</b>的线。</p>
+  <ul>
+    <li>能传数据的 USB-C 线 × 2</li>
+    <li>外骨骼电池单独充；摊位上备一块满电的</li>
+    <li>USB 转接器 / 集线器<span class="t">Hub</span>（Mac 口不够时）</li>
+    <li>台阶箱，或提前找好场地里的楼梯</li>
+    <li>网线转接头<span class="t">RJ45</span></li>
+    <li>打印：一张程序分层图 + 一张报告样例 + 代码仓库二维码</li>
+    <li>第 4 天前把网站提交项逐一核对：介绍文档、GitHub 链接能打开、全队名单、题目</li>
+  </ul>
+</section>
+
+<!-- 13 -->
+<section id="s13">
+  <h2><span class="num">13</span>代码文件夹长什么样<span class="src mine">我的建议</span></h2>
+  <p class="lede">一楼先做"放录像"功能，之后每一层都对着录好的数据开发，真机只在验证时才接。</p>
+  <pre><code>exo-ghost/
+├─ bridge/        一楼：serial_io.py（跟机器说话、每秒 200 次、看门狗、存表格、安全闸）
+│                        replay.py（放录像：把表格当机器在说话）
+├─ control/       二楼：policies.py（三种劲法）
+│                        gait.py（步频、抬腿高度、对称、爬升、做功）
+│                        safety.py（限幅、斜坡、绊倒检测）
+├─ agent/         三楼：ghost.py（身份、记忆、决定循环）
+│                        tools.py（6 个按钮）
+│                        evomap.py、voice.py（听 / 说）
+├─ verify/        顶楼：ledger.py（报告）、metrics.py、checker.py（检查员 AI）
+├─ dashboard/     大屏幕：index.html（曲线 + 决定记录 + 急停）
+├─ tools/         hold.py（验机用：持续用劲几秒）
+├─ data/          录下来的数据表格
+└─ docs/          protocol.md（第 03 节 + 角度方向约定）、本页</code></pre>
+</section>
+
+<!-- 14 -->
+<section id="s14">
+  <h2><span class="num">14</span>名词表<span class="src mix">按上文出现顺序</span></h2>
+  <p class="lede">上面出现过的蓝色标签，按顺序汇总在这里，方便查。</p>
+  <table>
+    <tr><th>专有名词</th><th>大白话</th><th>英文</th></tr>
+    <tr><td>黑客松</td><td>限时几天造东西的比赛</td><td>Hackathon</td></tr>
+    <tr><td>外骨骼</td><td>穿在身上帮你使劲的机器</td><td>Exoskeleton</td></tr>
+    <tr><td>Agent / 智能体</td><td>有身份、会用工具、能自己做决定的 AI 程序</td><td>Agent</td></tr>
+    <tr><td>大模型</td><td>会聊天会推理的 AI 大脑，比如 Claude</td><td>LLM</td></tr>
+    <tr><td>Token</td><td>AI 读写文字的计量单位，也是算力额度的单位</td><td>Token</td></tr>
+    <tr><td>工具调用</td><td>让 AI 会"按按钮"做事，而不只是说话</td><td>Tool use / Function calling</td></tr>
+    <tr><td>可验证</td><td>做的结果能拿证据证明是对的</td><td>Verifiable</td></tr>
+    <tr><td>髋关节</td><td>大腿根那个关节</td><td>Hip joint</td></tr>
+    <tr><td>串口</td><td>电脑和机器之间一句一句传字的通道，这里走 USB 线</td><td>Serial / USB CDC</td></tr>
+    <tr><td>波特率</td><td>串口说话的速度，每秒多少个"点点"</td><td>Baud rate</td></tr>
+    <tr><td>协议</td><td>双方约定好的说话格式</td><td>Protocol</td></tr>
+    <tr><td>帧</td><td>协议里的"一句话"</td><td>Frame</td></tr>
+    <tr><td>遥测 / 数据流</td><td>机器不停汇报自己状态的那一串数字</td><td>Telemetry / Stream</td></tr>
+    <tr><td>Hz（赫兹）</td><td>每秒几次；200 Hz = 每秒 200 次</td><td>Hertz</td></tr>
+    <tr><td>力矩</td><td>让关节转起来的"劲"，单位牛·米</td><td>Torque, Nm</td></tr>
+    <tr><td>看门狗</td><td>一段时间没收到消息就自动进入安全状态的保命机制</td><td>Watchdog</td></tr>
+    <tr><td>固件</td><td>烧在机器里的程序</td><td>Firmware</td></tr>
+    <tr><td>上位机</td><td>电脑这边用来看机器数据、发命令的软件</td><td>Host software</td></tr>
+    <tr><td>FireWater</td><td>VOFA+ 认的最简单文本格式："名字:数,数,数" 换行</td><td>—</td></tr>
+    <tr><td>CSV</td><td>用逗号隔开的纯文本表格，Excel 能打开</td><td>Comma-Separated Values</td></tr>
+    <tr><td>IMU</td><td>腰上的"平衡感芯片"，测姿态、转速、晃动</td><td>Inertial Measurement Unit</td></tr>
+    <tr><td>陀螺仪 / 加速度计 / 气压计</td><td>分别测转多快、晃多猛、空气压力（算高度）</td><td>Gyroscope / Accelerometer / Barometer</td></tr>
+    <tr><td>编码器</td><td>电机上测"转到多少度"的尺子</td><td>Encoder</td></tr>
+    <tr><td>欧拉角</td><td>前倾后仰、左歪右歪、转身三个角度</td><td>Euler angles (pitch, roll, yaw)</td></tr>
+    <tr><td>角速度</td><td>转得多快，每秒多少度</td><td>Angular velocity, °/s</td></tr>
+    <tr><td>符号约定 / 标定</td><td>先弄清"数字变大是哪个方向"</td><td>Sign convention / Calibration</td></tr>
+    <tr><td>噪声 / 零位</td><td>不动时数字的抖动 / 不动时数字是几</td><td>Noise / Zero offset</td></tr>
+    <tr><td>控制器</td><td>根据数据算"现在该用多大劲"的程序</td><td>Controller</td></tr>
+    <tr><td>实时</td><td>必须在很短、很准的时间里做完</td><td>Real-time</td></tr>
+    <tr><td>策略 / 增益</td><td>用哪种劲法 / 用多大</td><td>Policy / Gain</td></tr>
+    <tr><td>阻尼</td><td>动得越快拉得越紧，像在水里走</td><td>Damping</td></tr>
+    <tr><td>负阻尼</td><td>动得越快推得越猛，会越来越快，要小心</td><td>Negative damping</td></tr>
+    <tr><td>低通滤波</td><td>把数据里的小抖动磨平</td><td>Low-pass filter</td></tr>
+    <tr><td>死区</td><td>动作太小就当没动</td><td>Dead zone</td></tr>
+    <tr><td>限幅 / 斜坡</td><td>劲不许超过多少 / 劲不许变得太快</td><td>Clamp / Ramp (slew rate)</td></tr>
+    <tr><td>急停</td><td>一下子全停的紧急开关，这里 = 拔线</td><td>E-stop</td></tr>
+    <tr><td>基线 / 对照实验</td><td>"没帮忙时的样子" / 帮与不帮各来一次做比较</td><td>Baseline / Control experiment</td></tr>
+    <tr><td>步频 / 活动度 / 对称指数</td><td>每分钟几步 / 腿抬多高 / 左右腿像不像</td><td>Cadence / ROM / Symmetry index</td></tr>
+    <tr><td>峰值检测</td><td>在曲线里数"山峰"</td><td>Peak detection</td></tr>
+    <tr><td>机械功</td><td>机器对人出了多少力，劲 × 速度累加，单位焦耳</td><td>Work, Joule</td></tr>
+    <tr><td>交付单 / 验证器</td><td>带证据的报告 / 核对报告的"检查员"</td><td>Ledger / Verifier</td></tr>
+    <tr><td>EvoMap</td><td>主办方的"经验网络"，AI 可以查别人的经验、存自己的</td><td>—</td></tr>
+    <tr><td>设备桥</td><td>专门跟机器说话的那一层程序</td><td>Bridge</td></tr>
+    <tr><td>回放</td><td>把录好的数据当机器在说话，用来开发和兜底</td><td>Replay</td></tr>
+    <tr><td>WebSocket</td><td>程序之间的内部电话线</td><td>WebSocket</td></tr>
+    <tr><td>仪表盘</td><td>大屏幕上的曲线和记录</td><td>Dashboard</td></tr>
+    <tr><td>进程 / 线程</td><td>电脑里同时干活的"小人"；进程是独立的房间，线程是同一房间里的几个人</td><td>Process / Thread</td></tr>
+    <tr><td>库 / SDK / 包管理器</td><td>现成零件 / 某家公司给的一整套零件 / 帮你装零件的小管家</td><td>Library / SDK / Package manager</td></tr>
+    <tr><td>Python / uv / pyserial / numpy / scipy / pandas</td><td>语言 / 小管家 / 串口零件 / 数学零件 / 高级数学零件 / 表格零件</td><td>—</td></tr>
+    <tr><td>ASR / TTS</td><td>说话变文字 / 文字变说话</td><td>Speech recognition / Text-to-speech</td></tr>
+    <tr><td>uPlot / Rerun</td><td>画快曲线的零件 / 调试用的数据放大镜</td><td>—</td></tr>
+    <tr><td>ROS / Docker</td><td>机器人大操作系统 / 装程序的集装箱，本项目都不用</td><td>—</td></tr>
+    <tr><td>Workshop / 路演 / 封板</td><td>辅导课 / 上台讲 / 提交截止</td><td>—</td></tr>
+  </table>
+</section>
+
+<footer>本页是《plan.html》的大白话版本 · 内容来源相同：选手指南、Hypershell 技术文档及协议附件、VOFA+ 官方文档 · 2026-09-22</footer>
+</div>
+</body>
+</html>

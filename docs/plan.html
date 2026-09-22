@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原生 Agent 赛道 · 外骨骼方案汇总</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#ffffff; --ink:#1c1c1a; --muted:#6b6b66; --line:#e3e2dc;
+    --accent:#0f6b5c; --accent-soft:#e6f2ef; --warn:#a4550a; --warn-soft:#fbeede;
+    --code-bg:#f0efeb; --th-bg:#f1f1ed;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#141413; --panel:#1d1d1b; --ink:#ecece7; --muted:#a09f98; --line:#33332f;
+      --accent:#5fc2ad; --accent-soft:#1a2b27; --warn:#e8a05a; --warn-soft:#332417;
+      --code-bg:#242422; --th-bg:#262624;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:940px;margin:0 auto;padding:40px 16px 80px}
+  header h1{font-size:28px;line-height:1.3;margin:0 0 6px;letter-spacing:.01em}
+  header .meta{color:var(--muted);font-size:13px;margin:0 0 28px}
+  nav.toc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin-bottom:40px}
+  nav.toc h2{font-size:13px;margin:0 0 10px;color:var(--muted);font-weight:600;letter-spacing:.08em}
+  nav.toc ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 24px}
+  nav.toc a{color:var(--ink);text-decoration:none;display:flex;gap:10px;padding:3px 0}
+  nav.toc a:hover{color:var(--accent)}
+  nav.toc .n{color:var(--accent);font-variant-numeric:tabular-nums;min-width:2.2em;font-weight:600}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px 26px;margin-bottom:22px}
+  section h2{font-size:20px;margin:0 0 6px;display:flex;align-items:baseline;gap:12px}
+  section h2 .num{color:var(--accent);font-size:13px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+  .lede{background:var(--accent-soft);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0 20px;font-weight:500}
+  h3{font-size:15px;margin:22px 0 8px;color:var(--ink)}
+  p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0 6px;font-size:14px}
+  th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{background:var(--th-bg);font-weight:600;white-space:nowrap}
+  td:first-child{white-space:nowrap;font-weight:500}
+  tr:last-child td{border-bottom:none}
+  ul,ol{margin:6px 0 6px;padding-left:1.4em}
+  li{margin:3px 0}
+  code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.92em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+  pre{background:var(--code-bg);padding:14px 16px;border-radius:8px;overflow:auto;font-size:13px;line-height:1.55;margin:10px 0}
+  pre code{background:none;padding:0}
+  blockquote{margin:10px 0;padding:12px 16px;border-left:3px solid var(--line);color:var(--ink);background:var(--bg);border-radius:0 6px 6px 0}
+  .note{background:var(--warn-soft);border-left:3px solid var(--warn);padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0}
+  .muted{color:var(--muted)}
+  details{border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin:10px 0}
+  summary{cursor:pointer;font-weight:600}
+  .src{margin-left:auto;font-size:12px;font-weight:500;border-radius:999px;padding:1px 10px;white-space:nowrap;border:1px solid var(--line);color:var(--muted)}
+  .src.fact{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+  .src.mine{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+  .src.mix{color:var(--ink);border-color:var(--line);background:var(--bg)}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:13px;color:var(--muted);margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+  .legend .src{margin-left:0}
+  footer{color:var(--muted);font-size:12px;margin-top:30px;text-align:center}
+  @media print{
+    body{background:#fff;color:#000}
+    section,nav.toc{border:none;padding:0 0 16px;page-break-inside:avoid}
+    .wrap{padding:0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>原生 Agent 赛道 · 外骨骼方案汇总</h1>
+  <p class="meta">EvoTavern 进化酒馆黑客松 · 深圳站 &nbsp;|&nbsp; 2026-09-21 → 09-24 &nbsp;|&nbsp; 汇总更新：09-22（Day 2）&nbsp;|&nbsp; 方案代号：Ghost Coach &nbsp;|&nbsp; <a href="plan-plain.html" style="color:var(--accent)">大白话版本 →</a></p>
+</header>
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s01"><span class="n">01</span>比赛硬约束</a></li>
+    <li><a href="#s02"><span class="n">02</span>赛道题目与评审要点</a></li>
+    <li><a href="#s03"><span class="n">03</span>外骨骼平台与串口协议</a></li>
+    <li><a href="#s04"><span class="n">04</span>VOFA+：是什么、怎么用</a></li>
+    <li><a href="#s05"><span class="n">05</span>方案：Ghost Coach</a></li>
+    <li><a href="#s06"><span class="n">06</span>系统架构、控制策略与安全闸</a></li>
+    <li><a href="#s07"><span class="n">07</span>工具链</a></li>
+    <li><a href="#s08"><span class="n">08</span>上电验机清单</a></li>
+    <li><a href="#s09"><span class="n">09</span>时间表（到封板）</a></li>
+    <li><a href="#s10"><span class="n">10</span>展位 7 分钟脚本</a></li>
+    <li><a href="#s11"><span class="n">11</span>待确认问题（问 Hypershell）</a></li>
+    <li><a href="#s12"><span class="n">12</span>硬件与物料</a></li>
+    <li><a href="#s13"><span class="n">13</span>项目骨架</a></li>
+    <li><a href="#sA"><span class="n">附</span>其他赛道备选 idea（已放弃）</a></li>
+  </ol>
+  <div class="legend">
+    <span>来源标签：</span>
+    <span class="src fact">文档事实</span><span>直接来自选手指南 / Hypershell 技术文档与协议附件 / VOFA+ 官方文档</span>
+    <span class="src mine">我的建议</span><span>我提出的方案、选型、排期，任何官方文档里都没有</span>
+    <span class="src mix">事实 + 建议</span><span>两者都有，表内已分列</span>
+  </div>
+</nav>
+
+<!-- 01 -->
+<section id="s01">
+  <h2><span class="num">01</span>比赛硬约束<span class="src fact">文档事实 · 选手指南</span></h2>
+  <p class="lede">在馆开发时间约 27 小时；评审是评委巡展位、每人 7 分钟；必须交付一个评委能亲手上手的东西，不是 PPT。</p>
+
+  <h3>关键时间节点</h3>
+  <table>
+    <tr><th>时间</th><th>事项</th><th>对我们的意义</th></tr>
+    <tr><td>9/21 20:00</td><td>组队与赛道锁定</td><td>已过，赛道 = 03 原生 Agent</td></tr>
+    <tr><td>每晚 20:00 → 次日 08:00</td><td>主场馆封闭</td><td>Day2、Day3 各 12 小时，Day4 上午 3 小时</td></tr>
+    <tr><td>9/22 16:00–17:00</td><td>原生 Agent 赛道 Workshop</td><td>带着协议问题去（见 11）</td></tr>
+    <tr><td>9/23 10:00–12:00 / 15:00–17:00</td><td>导师巡场</td><td>找 Hypershell 的人看控制器</td></tr>
+    <tr><td>9/23 13:30 起</td><td>观众入场 Open Hour</td><td>找真人穿戴实测、攒数据</td></tr>
+    <tr><td>9/23 14:00–16:00</td><td>嘉宾分享（含曾泓炳，Hypershell 外骨骼工程师）</td><td>必去</td></tr>
+    <tr><td>9/24 11:00</td><td>作品封板，官网提交关闭</td><td>过期无法提交</td></tr>
+    <tr><td>9/24 13:00–16:00</td><td>初赛：约 30 位评委巡展打分</td><td>全员在场</td></tr>
+    <tr><td>9/24 17:00–18:00</td><td>复赛：各赛道 Top 2 主舞台路演</td><td>7 分钟 = 4 讲 + 3 问</td></tr>
+    <tr><td>9/24 18:45–19:30</td><td>颁奖</td><td></td></tr>
+  </table>
+
+  <h3>评审规则</h3>
+  <table>
+    <tr><th>项目</th><th>规定</th></tr>
+    <tr><td>打分</td><td>每队 ≥ 3 位评委看过才能打分；10 分制取平均；按分数排名</td></tr>
+    <tr><td>单次时长</td><td>每位评委约 7 分钟：4 分钟介绍 + 3 分钟问答</td></tr>
+    <tr><td>提交材料</td><td>项目介绍（商业计划书或技术说明）、GitHub 仓库链接、全员信息、参选主题与赛道、小红书笔记链接（可选）</td></tr>
+    <tr><td>官方提示</td><td>"展示产品，而不只是幻灯片"；评委到展位前会先看提交材料，链接必须全部有效</td></tr>
+  </table>
+
+  <h3>奖项</h3>
+  <table>
+    <tr><th>奖项</th><th>奖品</th><th>备注</th></tr>
+    <tr><td>全场冠军 Best Hacker</td><td>¥50,000</td><td>跨赛道终审</td></tr>
+    <tr><td>赛道冠军 Track Titan</td><td>原生 Agent 赛道：Hypershell 外骨骼</td><td>完成度、创新性、现场表现</td></tr>
+    <tr><td>评审团特别奖</td><td>¥2,000</td><td>跨赛道创新 / 技术勇气</td></tr>
+    <tr><td>观众选择奖</td><td>¥2,000</td><td>现场观众投票</td></tr>
+    <tr><td>Token Maxxxing</td><td>King Size Token Plan</td><td>24 小时内单人 Token 用量最多</td></tr>
+    <tr><td>小红书科技选择奖</td><td>流量扶持</td><td>个人参与、独立评审，数据截止 9/22 23:59</td></tr>
+  </table>
+
+  <h3>资源</h3>
+  <ul>
+    <li>Token：EvoMap API，支持主流模型；账号登记表单 <code>https://ycnkznjbwrrg.feishu.cn/share/base/form/shrcn0Q9syDDl2p2rwSX4dMvtSh</code></li>
+    <li>技术问题：选手群 或 <code>haidi@evomap.ai</code>；EvoX Agent 快捷键 <code>⌘⇧U</code></li>
+    <li>网络：现场有线专线，自带 RJ45 转接口；<strong>不要开手机热点</strong></li>
+  </ul>
+</section>
+
+<!-- 02 -->
+<section id="s02">
+  <h2><span class="num">02</span>赛道题目与评审要点<span class="src mix">原题为文档事实 · 拆解表为我的建议</span></h2>
+  <p class="lede">出题人 = 评委 = Hypershell。题目要求六件事：身份、真实任务、工具调用、异常处理、经验继承、可验证的交付。外骨骼是他们明说"鼓励使用"的义体。</p>
+
+  <h3>原题</h3>
+  <blockquote>
+    「Hypershell」向你提问：给 Ghost 一个身份，再交给它一项真实任务。个人助理、企业工作流、研究、教育、内容与城市服务，都有等待解决的具体问题。让 Agent 搜索、继承并调用网络中已经验证的经验，使用工具、处理异常，完成任务。你需要展示它交付了什么，以及这些结果如何被验证。
+  </blockquote>
+  <p class="muted">选赛道指引原文："致敬攻壳机动队，让 ghost 登陆义体外骨骼。" Hypershell 鼓励但不强制使用其外骨骼平台，并提供样机与技术文档。</p>
+
+  <h3>题目拆解 → 我们的对应</h3>
+  <table>
+    <tr><th>题目要求</th><th>方案里怎么体现</th></tr>
+    <tr><td>身份</td><td>住在外骨骼里的教练，有名字、声音、对每个穿戴者的记忆</td></tr>
+    <tr><td>真实任务</td><td>带穿戴者完成一段 2–3 分钟目标行走（省力 / 练腿 / 对称），交付报告</td></tr>
+    <tr><td>工具调用</td><td><code>set_policy</code>、<code>get_features</code>、<code>speak</code>、<code>ask_user</code>、<code>evomap_search</code>、<code>evomap_store</code></td></tr>
+    <tr><td>异常处理</td><td>串口断开、踉跄、电量低、用户说停，各有明确动作，展位上主动演一个</td></tr>
+    <tr><td>经验继承</td><td>开始前查 EvoMap 先验参数，结束后写回；第二个穿戴者校准更快</td></tr>
+    <tr><td>交付与验证</td><td>交付单：每条结论对应一段传感器数据；独立验证器签字</td></tr>
+  </table>
+</section>
+
+<!-- 03 -->
+<section id="s03">
+  <h2><span class="num">03</span>外骨骼平台与串口协议<span class="src fact">文档事实 · Hypershell 技术文档 + 协议附件</span></h2>
+  <p class="lede">没有档位，只有裸力矩。设备给 200 Hz 的 15 通道数据流，我们以 200 Hz 回发左右力矩；100 ms 不续发自动清零。控制器必须自己写，安全闸是第一优先级。</p>
+
+  <h3>平台</h3>
+  <table>
+    <tr><th>项目</th><th>内容</th></tr>
+    <tr><td>型号</td><td>Hypershell X MaxS 髋关节助行外骨骼</td></tr>
+    <tr><td>固件</td><td>2.9.99.1（黑客松专用）</td></tr>
+    <tr><td>开放能力</td><td>机身传感器数据流 + 电机力矩控制接口</td></tr>
+    <tr><td>接口</td><td>USB CDC 串口，与电脑上位机通信；macOS 免驱，设备名 <code>/dev/cu.usbmodem*</code></td></tr>
+    <tr><td>文档</td><td>技术支持文档：<code>https://autogame.feishu.cn/docx/L49jdUGenooxdxx3ci9cB94Fnle</code><br>协议：附件《深圳黑客松2026串口协议.docx》（3 页，552 KB）；hypershell.feishu.cn 的在线版无权限</td></tr>
+    <tr><td>内部结构（仅供理解）</td><td>左腿 = 主板 CAN ID 21，右腿 = 从板 CAN ID 20；左右力矩走广播 CAN_SET_ETE_FORCE，互相独立；力矩环为电流随动 iq = torque / 比例系数</td></tr>
+  </table>
+
+  <h3>串口参数与限制</h3>
+  <table>
+    <tr><th>项目</th><th>规定</th></tr>
+    <tr><td>物理层</td><td>USB CDC，3,000,000 baud，8N1，一行一条命令，<code>\n</code> 结尾（<code>\r\n</code> 也可）</td></tr>
+    <tr><td>数据流频率</td><td>固定 200 Hz（IMU / 编码器有效更新约 200 Hz）</td></tr>
+    <tr><td>力矩下发频率</td><td>建议 200 Hz，允许 10–500 Hz</td></tr>
+    <tr><td>看门狗</td><td>100 ms 未续发 T，力矩自动清零</td></tr>
+    <tr><td>力矩范围</td><td>±7.5 Nm，固件限幅</td></tr>
+    <tr><td>单位</td><td>力矩 Nm；角度 °；角速度 °/s；陀螺仪 °/s；加速度 g；气压 kPa</td></tr>
+    <tr><td>上电顺序</td><td>插 USB 后先开机进入工作态，再发 ENABLE；此固件插 Type-C 不进充电态</td></tr>
+  </table>
+
+  <h3>命令</h3>
+  <table>
+    <tr><th>发送</th><th>应答</th><th>说明</th></tr>
+    <tr><td><code>PING</code></td><td><code>PONG</code></td><td>连通性</td></tr>
+    <tr><td><code>VERSION</code></td><td><code>OK,VERSION,2.9.99.1</code></td><td>固件版本</td></tr>
+    <tr><td><code>ENABLE</code></td><td><code>OK,ENABLE</code></td><td>使能力矩并开始 200 Hz 数据流</td></tr>
+    <tr><td><code>DISABLE</code></td><td><code>OK,DISABLE</code></td><td>力矩清零并停止数据流</td></tr>
+    <tr><td><code>T,&lt;left&gt;,&lt;right&gt;</code></td><td><code>OK,T,&lt;left&gt;,&lt;right&gt;</code></td><td>左右解耦力矩，Nm，范围 ±7.5</td></tr>
+  </table>
+  <p>错误应答：未 ENABLE 时发 T → <code>ERR,NOT_ENABLED</code>；格式错误 → <code>ERR,T_FORMAT</code>；未知命令 → <code>ERR,UNKNOWN</code>。</p>
+
+  <h3>数据流帧（ENABLE 后固定 200 Hz）</h3>
+  <pre><code>S:&lt;ms&gt;,&lt;pitch&gt;,&lt;roll&gt;,&lt;yaw&gt;,&lt;gx&gt;,&lt;gy&gt;,&lt;gz&gt;,&lt;ax&gt;,&lt;ay&gt;,&lt;az&gt;,&lt;kPa&gt;,&lt;Ldeg&gt;,&lt;Rdeg&gt;,&lt;Ldps&gt;,&lt;Rdps&gt;</code></pre>
+  <table>
+    <tr><th>字段</th><th>含义</th><th>单位</th></tr>
+    <tr><td>ms</td><td>主板时间</td><td>ms</td></tr>
+    <tr><td>pitch, roll, yaw</td><td>穿戴系欧拉角</td><td>°</td></tr>
+    <tr><td>gx, gy, gz</td><td>腰部陀螺仪角速度</td><td>°/s</td></tr>
+    <tr><td>ax, ay, az</td><td>腰部线性加速度</td><td>g</td></tr>
+    <tr><td>kPa</td><td>气压</td><td>kPa</td></tr>
+    <tr><td>Ldeg, Rdeg</td><td>左右髋关节输出轴角度</td><td>°</td></tr>
+    <tr><td>Ldps, Rdps</td><td>左右髋关节输出轴角速度</td><td>°/s</td></tr>
+  </table>
+
+  <h3>最小流程（协议原文）</h3>
+  <pre><code>PING
+ENABLE
+T,1.5,-1.5
+T,1.5,-1.5
+...
+DISABLE</code></pre>
+  <div class="note">协议没有写明角度的正方向（屈 / 伸）和左右是否镜像。这决定所有控制器的符号，必须在验机时（见 08）自己测出来。</div>
+</section>
+
+<!-- 04 -->
+<section id="s04">
+  <h2><span class="num">04</span>VOFA+：是什么、怎么用<span class="src mix">前两表为文档事实 · 用法与插件结论为我的判断</span></h2>
+  <p class="lede">VOFA+ 是 Hypershell 推荐的串口调试"上位机"，本质是串口助手 + 实时示波器。我们只用它做前十分钟的验机和零代码兜底可视化，它不是控制器，插件也不用碰。</p>
+
+  <h3>基本信息</h3>
+  <table>
+    <tr><th>项目</th><th>内容</th></tr>
+    <tr><td>是什么</td><td>国内开发者（固特加）2018 年起做的调试软件，原名"伏特加"；设备通过串口/网口吐数据，它解析后画曲线，也能点按钮给设备发命令</td></tr>
+    <tr><td>版本 / 平台</td><td>1.3.10；Windows、Mac Universal（dmg）、Linux；免费下载（尚未下载）</td></tr>
+    <tr><td>三个核心概念</td><td><strong>数据</strong>：解析出的通道（外骨骼 15 个字段 = I0–I14）；<strong>命令</strong>：预写字符串绑到按钮；<strong>参数</strong>：命令里的 <code>%f</code> 占位符绑到滑条</td></tr>
+    <tr><td>协议引擎</td><td>FireWater（逗号分隔文本，外骨骼用这个）、JustFloat（二进制浮点）、RawData（原样显示）</td></tr>
+    <tr><td>FireWater 格式</td><td><code>"&lt;any&gt;:ch0,ch1,...,chN\n"</code>，换行是帧结束符；外骨骼的 <code>S:</code> 帧就是标准 FireWater 帧，"S:" 是固件的约定不是 VOFA+ 的要求</td></tr>
+  </table>
+
+  <h3>在本项目中的用法</h3>
+  <table>
+    <tr><th>用途</th><th>操作</th><th>结论</th></tr>
+    <tr><td>验机</td><td>串口 3000000 → 协议 FireWater → 发 ENABLE → 右栏出现 I0–I14 → 把 I11/I12（Ldeg/Rdeg）拖进波形图、点 Auto → 手摆支架看方向</td><td>比自己写解析快，十分钟内完成</td></tr>
+    <tr><td>发单条命令</td><td>左栏"命令"Str 模式绑按钮：<code>PING\n</code>、<code>ENABLE\n</code>、<code>DISABLE\n</code></td><td>可用</td></tr>
+    <tr><td>手动出力</td><td>滑条绑 <code>T,%f,0\n</code></td><td>只在拖动时发，无周期续发，100 ms 后被看门狗清零，只能看到"抖一下"——正好用来验证看门狗</td></tr>
+    <tr><td>姿态可视化</td><td>Cube 控件绑 pitch/roll/yaw</td><td>展位零代码兜底</td></tr>
+    <tr><td>当控制器</td><td>—</td><td><strong>不行</strong>，没有 200 Hz 定时发送能力</td></tr>
+  </table>
+
+  <h3>插件商店结论</h3>
+  <p>共 24 个，最新更新 2021 年初，之后停更。数据引擎就是自带三个；控件是仪表盘、旋钮、摇杆、切换按钮之类的装饰件；"命令"类为空，没有任何周期发送插件；皮肤 8 个。自定义插件只能 C++ 编译。<strong>不值得投入任何时间。</strong></p>
+</section>
+
+<!-- 05 -->
+<section id="s05">
+  <h2><span class="num">05</span>方案：Ghost Coach（塔奇克马教练）<span class="src mine">我的建议</span></h2>
+  <p class="lede">一个有身份的 Agent 住进外骨骼：读步态遥测，判断地形与状态，选择控制策略并解释为什么，带穿戴者完成一段目标行走，交付一份每条结论都能回溯到传感器数据的报告。</p>
+
+  <h3>要素</h3>
+  <table>
+    <tr><th>要素</th><th>设计</th></tr>
+    <tr><td>身份</td><td>教练人格（致敬塔奇克马，组委会打卡墙就是它），有名字、有声音，记住每个穿戴者的身高体重、目标、上次表现</td></tr>
+    <tr><td>真实任务</td><td>评委口头给目标：「让他上楼省点力」/「练腿，加阻力」/「左腿刚恢复，帮他走对称」→ 带穿戴者走 2–3 分钟 → 交报告</td></tr>
+    <tr><td>感知</td><td>200 Hz 原始流 → 每秒特征摘要：步频、步幅代理（髋活动度）、左右对称指数、坡度（pitch）、爬升（kPa 趋势）、疲劳代理（步频下降 + 活动度缩小）</td></tr>
+    <tr><td>决策</td><td>每 5–10 秒重评估，通过 <code>set_policy(策略, 增益)</code> 下发；每次变更语音说一句理由</td></tr>
+    <tr><td>异常处理</td><td>串口断开 → 力矩自动清零、切手机 IMU 继续记录；角速度/加速度突变（踉跄）→ 桥接层直接清零，不经过 LLM；电量低 → 缩短计划；用户说"累了 / 停" → 立即停</td></tr>
+    <tr><td>经验继承</td><td>开始前 <code>evomap_search</code>（"70 kg、上楼、resist 0.5 效果"）作为先验；结束后 <code>evomap_store</code>（画像、地形、参数、结果）；大屏标注"继承自 N 条经验"</td></tr>
+    <tr><td>交付与验证</td><td>交付单：目标、决策时间线（时间戳 + 理由）、指标；每条结论点开即对应数据段曲线；独立验证器（规则校验 + 第二个模型复核）签字</td></tr>
+  </table>
+
+  <h3>交付单指标（全部可从数据流算出）</h3>
+  <table>
+    <tr><th>指标</th><th>算法</th></tr>
+    <tr><td>步数、步频</td><td>髋角度峰值检测（<code>scipy.signal.find_peaks</code>）</td></tr>
+    <tr><td>左右对称指数</td><td>左右活动度（ROM）和步时的对称比</td></tr>
+    <tr><td>爬升高度</td><td>气压趋势换算</td></tr>
+    <tr><td>设备做功 J</td><td>∫ τ·ω dt，τ 是我们下发的力矩，ω 是测到的角速度（°/s 转 rad/s）</td></tr>
+    <tr><td>对照</td><td>同一人、同一段楼梯：固定策略 vs Ghost 自适应，比步频和做功</td></tr>
+  </table>
+
+  <h3>给评委的一句话</h3>
+  <p>今天这台设备是"有几个模式的电机"；装上 Ghost 之后它认识你、随路况和状态调整、会解释自己，而且每个人的经验都回流给下一个穿戴者。</p>
+</section>
+
+<!-- 06 -->
+<section id="s06">
+  <h2><span class="num">06</span>系统架构、控制策略与安全闸<span class="src mine">我的建议 · 仅力矩上限与看门狗来自协议</span></h2>
+  <p class="lede">LLM 只做策略层，不进实时环。控制器在本地以 200 Hz 跑纯规则；桥接层的安全闸独立于一切上层逻辑。<br><span class="muted">注意：所有代码都运行在电脑上，通过 USB 串口控制设备；不向外骨骼烧录任何程序，固件 2.9.99.1 由 Hypershell 固定。</span></p>
+
+  <h3>分层</h3>
+  <pre><code>外骨骼 ⇄ USB 串口 3 Mbps
+   │
+[设备桥 bridge]     读 S: 帧、解析、落 CSV；200 Hz 续发 T；PING/ENABLE/DISABLE；
+                    安全闸；回放模式（从 CSV 喂数据，接口与真机一致）
+   │
+[控制器 controller] 200 Hz 纯规则：策略 × 增益 → 左右力矩；步态特征提取
+   │  WebSocket：每 1 s 一份特征摘要 ↑ / 策略变更指令 ↓
+[Agent 运行时]      身份 + 记忆、规划、工具调用、异常策略、语音 ASR/TTS
+   │
+[验证器 + 交付单]   [仪表盘] 曲线、决策日志、急停按钮</code></pre>
+
+  <h3>三种控制策略（Agent 可选策略与增益，增益有硬上限）</h3>
+  <table>
+    <tr><th>策略</th><th>公式</th><th>用途</th><th>安全说明</th></tr>
+    <tr><td><code>zero</code></td><td>τ = 0</td><td>透明模式，采基线</td><td>—</td></tr>
+    <tr><td><code>resist(c)</code></td><td>τ = −c · ω</td><td>粘性阻尼，"练腿"</td><td>天然稳定，最安全；走路时 ω ≈ 2–4 rad/s，c = 0.5 即 1–2 Nm</td></tr>
+    <tr><td><code>assist(c)</code></td><td>τ = +c · ω</td><td>顺着运动方向推，"省力"</td><td>本质负阻尼，会放大动作：c 从 0.2 起、加低通、加死区、上限 2 Nm；有余力再做按步态相位打脉冲的版本</td></tr>
+  </table>
+
+  <h3>安全闸（桥接层，不经过 LLM）</h3>
+  <ol>
+    <li>软件限幅：演示阶段 ±2 Nm（固件 ±7.5 Nm 只是最后一道）</li>
+    <li>斜坡：每 50 ms 最多变化 0.2 Nm</li>
+    <li>踉跄检测：|加速度| 或 roll/pitch 突变 → 立即清零并 DISABLE</li>
+    <li>键盘一键 DISABLE；桌上一个物理急停 = 拔 USB（100 ms 内固件自动归零）</li>
+    <li>串口异常、进程退出（<code>atexit</code>）都发 DISABLE</li>
+    <li>拆分进程：控制环与 LLM 调用不在同一进程，网络卡顿不影响续发</li>
+  </ol>
+</section>
+
+<!-- 07 -->
+<section id="s07">
+  <h2><span class="num">07</span>工具链<span class="src mine">我的选型建议 · Hypershell 文档未规定任何开发工具</span></h2>
+  <p class="lede">这一节全部是我的选型建议。Hypershell 文档只规定了串口协议、只推荐了 VOFA+ 看数据，没有规定任何开发语言或工具；Agent、语音这几层是赛道要求"有身份、能对话的 Agent"带出来的需求，与外骨骼本身无关。全部在电脑侧，Python 一把梭，不需要任何嵌入式工具链。</p>
+
+  <table>
+    <tr><th>层</th><th>选择</th><th>理由</th></tr>
+    <tr><td>语言 / 环境</td><td>Python 3.11+，<code>uv</code></td><td>pyserial、numpy、Anthropic SDK 都是一等公民</td></tr>
+    <tr><td>串口</td><td>pyserial</td><td>3,000,000 baud 直接设；macOS 用 <code>/dev/cu.usbmodem*</code>，不用 <code>tty.</code></td></tr>
+    <tr><td>控制环</td><td>独立线程/进程，<code>time.perf_counter</code> 定时 5 ms</td><td>抖动 1–2 ms 远小于 100 ms 看门狗</td></tr>
+    <tr><td>进程间通信</td><td>WebSocket（<code>websockets</code> 或 FastAPI）</td><td>仪表盘、Agent 都连它，一个协议三方用</td></tr>
+    <tr><td>信号处理</td><td>numpy + scipy.signal</td><td>低通、找峰、对称指数</td></tr>
+    <tr><td>数据记录</td><td>原始行落 CSV；分析用 pandas</td><td>回放模式直接逐行重放</td></tr>
+    <tr><td>Agent<br><span class="muted" style="font-weight:400">（与外骨骼无关，赛道要求）</span></td><td>Anthropic Python SDK + tool use；Claude Sonnet 5（快）/ Opus 5（复杂决策）</td><td>EvoMap API 拿到 key 后确认是否 OpenAI 兼容，大概率换 base_url 即可</td></tr>
+    <tr><td>语音输入<br><span class="muted" style="font-weight:400">（与外骨骼无关，展示需要）</span></td><td>mlx-whisper（Apple Silicon 本地）或 faster-whisper</td><td>展位网络不可靠，本地最稳</td></tr>
+    <tr><td>语音输出<br><span class="muted" style="font-weight:400">（与外骨骼无关，展示需要）</span></td><td>edge-tts；兜底 macOS <code>say -v Tingting</code></td><td>免 key；有火山引擎账号可换豆包 TTS</td></tr>
+    <tr><td>仪表盘</td><td>HTML + uPlot + WebSocket</td><td>200 Hz × 15 通道不卡；决策日志、急停同页</td></tr>
+    <tr><td>开发期可视化</td><td>Rerun（<code>rerun-sdk</code>）</td><td>调控制器时拖时间轴看帧，展位不用</td></tr>
+    <tr><td>验机</td><td>VOFA+ 1.3.10</td><td>只用前十分钟</td></tr>
+    <tr><td>串口终端</td><td><code>python -m serial.tools.miniterm /dev/cu.usbmodem* 3000000</code></td><td>macOS 自带 screen 不一定接受 3M 波特</td></tr>
+  </table>
+
+  <h3>起步命令</h3>
+  <pre><code>uv init exo-ghost &amp;&amp; cd exo-ghost
+uv add pyserial numpy scipy pandas websockets anthropic edge-tts</code></pre>
+
+  <h3>明确不用</h3>
+  <ul>
+    <li>ROS / ROS2：macOS 上装半天，收益为零</li>
+    <li>Arduino / STM32 工具链：固件不归我们管</li>
+    <li>MATLAB / Simulink：三种策略几行公式</li>
+    <li>Docker：macOS 串口穿透是坑</li>
+    <li>VOFA+ 插件开发：C++ 编译，白扔一天</li>
+  </ul>
+</section>
+
+<!-- 08 -->
+<section id="s08">
+  <h2><span class="num">08</span>上电验机清单<span class="src mine">我的建议</span></h2>
+  <p class="lede">前 30 分钟按顺序做，全部通过之前不穿在人身上。</p>
+  <ol>
+    <li><strong>不穿在身上</strong>，设备放桌上、腿部支架能自由摆动；接数据线，确认出现 <code>/dev/cu.usbmodem*</code></li>
+    <li><code>PING</code> → <code>PONG</code>，<code>VERSION</code> → <code>2.9.99.1</code>；<code>ENABLE</code> 后确认 S: 帧稳定 200 Hz；录 10 秒静止数据看噪声和零位</li>
+    <li>手动摆动左右支架，记录 Ldeg/Rdeg 的<strong>正方向是屈还是伸、两腿是否镜像</strong></li>
+    <li>持续续发 <code>T,1.0,0</code> 一秒，看左腿往哪边动、Ldeg 怎么变；再 <code>T,0,1.0</code> 看右腿；记下符号约定</li>
+    <li>验证看门狗：停发 T，确认 100 ms 内力矩消失</li>
+    <li>以上全通过 → 穿上人 → 从 <code>resist(0.3)</code> 开始，再试 <code>assist(0.2)</code></li>
+  </ol>
+  <p class="muted">第 2、3 步可以直接在 VOFA+ 里做；第 4、5 步需要我们自己的 <code>hold</code> 工具（VOFA+ 不能续发）。</p>
+</section>
+
+<!-- 09 -->
+<section id="s09">
+  <h2><span class="num">09</span>时间表（到封板）<span class="src mix">时间节点为文档事实 · 安排为我的建议</span></h2>
+  <p class="lede">Day 2 结束前必须有"真机只读 + 回放 + 桌面上跑通三种策略"；Day 3 做闭环、Agent、交付单；Day 4 上午只做稳定性和物料。</p>
+  <table>
+    <tr><th>时段</th><th>目标</th><th>产出</th></tr>
+    <tr><td>Day 2 上午（9/22）</td><td>验机、bridge 只读、录数据、回放模式</td><td>200 Hz 数据在终端滚；第一份 CSV；角度符号约定写进 <code>docs/protocol.md</code></td></tr>
+    <tr><td>Day 2 16:00–17:00</td><td>原生 Agent Workshop</td><td>问清 11 里的问题；拿 EvoMap API 说明和额度</td></tr>
+    <tr><td>Day 2 下午–20:00</td><td>控制器三策略在桌面上测；安全闸；hold 工具</td><td>穿戴 resist 试走一次并录像</td></tr>
+    <tr><td>Day 2 晚（馆外）</td><td>Agent 层对着回放数据开发：persona、工具、交付单模板</td><td>假数据跑通 Agent → 验证器 → 交付单</td></tr>
+    <tr><td>Day 3 上午（9/23）</td><td>真机闭环：特征摘要 → Agent → set_policy → 语音解释</td><td>10:00–12:00 导师巡场时演给 Hypershell 的人看</td></tr>
+    <tr><td>Day 3 下午</td><td>EvoMap 接入、异常处理、仪表盘；14:00 听曾泓炳分享；Open Hour 找观众实测</td><td>≥ 3 个不同人的 session 数据；对照实验一组</td></tr>
+    <tr><td>Day 3 晚（馆外）</td><td>交付单打磨、回放兜底、路演讲稿</td><td>7 分钟脚本可以完整跑一遍</td></tr>
+    <tr><td>Day 4 09:00–11:00（9/24）</td><td>只做稳定性、物料打印、官网提交</td><td>11:00 封板</td></tr>
+  </table>
+  <div class="note">决策点：Day 2 20:00 之前如果 <code>assist</code> 在人身上不稳定，展示只用 <code>resist</code> + <code>zero</code>，把"省力"留作 pitch 里的下一步，不要硬上。</div>
+</section>
+
+<!-- 10 -->
+<section id="s10">
+  <h2><span class="num">10</span>展位 7 分钟脚本<span class="src mine">我的建议</span></h2>
+  <p class="lede">穿脱要一分钟以上，队友全程穿着当"义体"，评委当"下指令的人"；最后一分钟才让评委自己试。</p>
+  <table>
+    <tr><th>时间</th><th>环节</th><th>评委看到什么</th></tr>
+    <tr><td>0:00–0:30</td><td>一句话讲项目，队友已戴好待机</td><td>大屏上 200 Hz 曲线在滚</td></tr>
+    <tr><td>0:30–1:30</td><td>评委对 Ghost 说目标</td><td>Ghost 复述计划，说明从 EvoMap 继承了什么先验</td></tr>
+    <tr><td>1:30–3:30</td><td>队友走一段 + 上几级台阶</td><td>曲线 + 决策日志实时更新，Ghost 每次调整都语音解释</td></tr>
+    <tr><td>3:30–4:00</td><td>故意制造异常（拔 USB / 突然停步）</td><td>力矩归零、Ghost 报告并降级处理</td></tr>
+    <tr><td>4:00–5:00</td><td>交付单出现</td><td>评委随便点一条结论看对应数据段；验证器签字</td></tr>
+    <tr><td>5:00–7:00</td><td>评委自己戴上试一分钟，或问答</td><td>安全闸三句话：限幅、斜坡、踉跄清零</td></tr>
+  </table>
+  <p><strong>兜底：</strong>录好一次完整 session 的 CSV + 视频，真机掉链子时用回放模式走同一条管线，界面上一模一样。</p>
+</section>
+
+<!-- 11 -->
+<section id="s11">
+  <h2><span class="num">11</span>待确认问题（问 Hypershell）<span class="src mine">我的建议</span></h2>
+  <p class="lede">协议 docx 已经回答了接口形态、遥测字段、控制方式；剩下的都是"人穿着时"的问题，Workshop 和导师巡场时问。</p>
+  <ol>
+    <li>Ldeg/Rdeg 的正方向（屈为正还是伸为正），左右是否镜像（可自测，确认更快）</li>
+    <li>人穿着时他们建议的力矩上限和斜坡；我们计划演示阶段 ±2 Nm</li>
+    <li>他们内部的助力是按步态相位还是速度随动；<code>+c·ω</code> 这种负阻尼会不会引发振荡</li>
+    <li>持续出力下电池能撑多久；能否边用边充（协议说 Type-C 不进充电态）</li>
+    <li>样机能否留到 Day 4 展位；有没有备用机</li>
+    <li>官方 App 蓝牙同时连着会不会抢控制</li>
+    <li>展位评审时他们的工程师会不会在场，能不能提前看一眼我们的控制器</li>
+    <li>EvoMap：经验检索 / 写入接口长什么样，模型 API 是否 OpenAI 兼容</li>
+  </ol>
+</section>
+
+<!-- 12 -->
+<section id="s12">
+  <h2><span class="num">12</span>硬件与物料<span class="src mine">我的建议</span></h2>
+  <p class="lede">最常见的"设备没反应"是充电线没数据线。</p>
+  <ul>
+    <li>能传数据的 USB-C 线 × 2</li>
+    <li>外骨骼电池单独充；展位备一块满电的</li>
+    <li>USB hub（Mac 口不够时）</li>
+    <li>台阶箱或提前踩点场地楼梯</li>
+    <li>RJ45 网线转接口（现场有线网）</li>
+    <li>打印物料：一页架构图 + 一页交付单样例 + 二维码（GitHub 仓库）</li>
+    <li>Day 4 前把官网提交项逐一核对：介绍文档、GitHub 链接可访问、全员信息、赛道</li>
+  </ul>
+</section>
+
+<!-- 13 -->
+<section id="s13">
+  <h2><span class="num">13</span>项目骨架<span class="src mine">我的建议</span></h2>
+  <p class="lede">桥接层先做回放模式，之后所有层都对着 CSV 开发，真机只在验证时接。</p>
+  <pre><code>exo-ghost/
+├─ bridge/        serial_io.py（读写、200 Hz 续发、看门狗、CSV 落盘、安全闸）
+│                 replay.py（按时间戳重放 CSV，接口与真机一致）
+├─ control/       policies.py（zero / resist / assist）
+│                 gait.py（步频、ROM、对称、爬升、做功）
+│                 safety.py（限幅、斜坡、踉跄检测）
+├─ agent/         ghost.py（身份、记忆、决策循环）
+│                 tools.py（set_policy / get_features / speak / ask / evomap_*）
+│                 evomap.py、voice.py（ASR / TTS）
+├─ verify/        ledger.py（交付单）、metrics.py、checker.py（第二模型复核）
+├─ dashboard/     index.html（uPlot 曲线 + 决策日志 + 急停）
+├─ tools/         hold.py（命令行持续出力，验机用）
+├─ data/          录制的 CSV
+└─ docs/          protocol.md（本页 03 的内容 + 角度符号约定）、plan.html（本页）</code></pre>
+</section>
+
+<!-- 附录 -->
+<section id="sA">
+  <h2><span class="num">附</span>其他赛道备选 idea（已放弃，仅留档）<span class="src mine">我的建议 · 已放弃</span></h2>
+  <p class="lede">赛道已锁定为 03，以下只做记录。</p>
+  <details>
+    <summary>02 · AI 游戏与交互世界（Tripo）</summary>
+    <ul>
+      <li><strong>涂鸦兽园</strong>：观众画小怪兽 → Tripo 生成 3D 生物落进共享世界，带性格与记忆，世界 4 天不重置，每小时写编年史，扫码 AR 带走</li>
+      <li><strong>一句话铁匠铺</strong>：roguelike 里武器只能靠描述获得，LLM 出受约束数值，Tripo 出模型，武器留在共享军械库</li>
+      <li><strong>盲盒手办工坊</strong>：答三题 → 角色卡 → Q 版手办 → AR 预览 → 人气高的用拓竹打印</li>
+    </ul>
+  </details>
+  <details>
+    <summary>03 · 原生 Agent 的其他切口</summary>
+    <ul>
+      <li><strong>Ghost 秘书</strong>：口述乱糟糟的指令 → 拆任务、查 EvoMap、调工具、反问歧义 → 交付单（状态 / 证据 / 置信度），不可逆操作停在确认前</li>
+      <li><strong>内容 Ghost</strong>：把已有的日报 / 公众号流水线包成有身份的主编，验证 = 每条事实回溯源</li>
+      <li><strong>康复陪练</strong>、<strong>场地导览</strong>：同一套外骨骼技术栈的两个备选任务框架</li>
+    </ul>
+  </details>
+  <details>
+    <summary>04 · 多 Agent 蜂群协作（EvoMap）</summary>
+    <ul>
+      <li><strong>点子验尸官</strong>：侦察 / 分析 / 质疑 / 审计 / 档案五角色，作战室 UI + 击杀按钮 + 单 Agent 对照</li>
+      <li><strong>蜂群修 Bug</strong>：两个修复员竞争补丁，评审员复现后合并，测试即裁判</li>
+      <li><strong>混沌按钮</strong>：评委按按钮搞坏一个服务，蜂群 on-call 修复，同时可击杀蜂群成员</li>
+    </ul>
+  </details>
+</section>
+
+<footer>本页由对话内容汇总生成 · 来源：选手指南 docx、Hypershell 技术支持文档及协议附件、VOFA+ 官方文档 · 2026-09-22</footer>
+</div>
+</body>
+</html>
