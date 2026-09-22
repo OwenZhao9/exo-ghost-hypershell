@@ -47,6 +47,8 @@ class SafetyMonitor:
         self._last_t: Optional[float] = None
         self._budget_blown_until = 0.0
         self.last_scale = 1.0
+        self.last_detail: dict[str, float] = {}     # 每条渐弱条各自的系数，给界面解释用
+        self.last_binding = ""                      # 这一帧是哪条在压着输出
         self.reason: Optional[str] = None
         self.reflex = self._build_reflex()
 
@@ -120,12 +122,37 @@ class SafetyMonitor:
         self._last_t = now
         while self._energy and now - self._energy[0][0] > 1.0:
             self._energy.popleft()
-        if sum(j for _, j in self._energy) > self.p.assist_energy_J_per_s:
+        spent = sum(j for _, j in self._energy)
+        if spent > self.p.assist_energy_J_per_s:
             self._budget_blown_until = now + 0.5
+        detail = self.reflex.scale_detail(now, self._sensors(s, now))
+        # 能量预算是个 1 秒滑动窗，不在 fly-reflex 里（它的 derived 必须无状态），
+        # 所以单独算一条，和别的渐弱条并列展示。
+        detail["energy"] = 0.0 if now < self._budget_blown_until else 1.0
         if now < self._budget_blown_until:
             sc = 0.0
+        self.last_detail = {k: round(v, 3) for k, v in detail.items()}
+        self.last_binding = min(detail, key=lambda k: detail[k]) if detail else ""
+        self.energy_J_per_s = round(spent, 3)
         self.last_scale = sc
         return sc
+
+    #: 渐弱条 id -> 人能读懂的名字，仪表盘直接用这张表。
+    TAPER_LABELS = {"dps_l": "左腿转太快", "dps_r": "右腿转太快",
+                    "angle_l": "左腿离中立位太远", "angle_r": "右腿离中立位太远",
+                    "energy": "每秒做功超预算"}
+
+    def scale_detail(self) -> dict:
+        """最近一帧每条渐弱条的系数，以及是哪条在压着输出。给界面解释用。"""
+        return {
+            "scale": round(self.last_scale, 3),
+            "detail": dict(self.last_detail),
+            "binding": self.last_binding,
+            "binding_label": self.TAPER_LABELS.get(self.last_binding, self.last_binding),
+            "energy_J_per_s": getattr(self, "energy_J_per_s", 0.0),
+            "energy_budget": self.p.assist_energy_J_per_s,
+            "labels": self.TAPER_LABELS,
+        }
 
     def stats(self) -> dict:
         """反射层的累计统计：跑了多少帧、每条规则触发几次、丢了多少饱和帧。"""
