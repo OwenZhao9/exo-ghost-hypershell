@@ -14,7 +14,7 @@ wheels = [
 [[package]]
 name = "evomap-genes"
 version = "0.1.1"
-source = { git = "https://github.com/OwenZhao9/evomap-genes?rev=v0.1.1#a79ff720d9ce69c5f470a9e05253fa78853c14ac" }
+source = { git = "https://github.com/OwenZhao9/evomap-genes?rev=v0.1.1#0f94480c573d5292ea2068c9736bf2bddb6588a0" }
 
 [[package]]
 name = "exo-ghost"
@@ -66,7 +66,7 @@ wheels = [
 [[package]]
 name = "jev-decide"
 version = "0.1.1"
-source = { git = "https://github.com/OwenZhao9/jev-decide?rev=v0.1.1#7d44882a3c5ea33f8b20bdab64d775a91531aad7" }
+source = { git = "https://github.com/OwenZhao9/jev-decide?rev=v0.1.1#31093e789020c8403cc7d32eb925b6100e36617c" }
 
 [[package]]
 name = "numpy"
