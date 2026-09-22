@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import importlib
+import time
 from typing import Any, Callable, Mapping
 
 import control.policies as P
+from bridge.faults import FAULT_KINDS
 from control.safety import PROFILES, SafetyMonitor
 
 Log = Callable[..., None]
@@ -106,6 +108,35 @@ def _op_reload(cmd, session, bridge, log):
     log("已热重载 control.policies，策略回到 zero", "ok")
 
 
+def _op_fault(cmd, session, bridge, log):
+    """给数字义体注入一次故障。真机上没有这个开关——真机的故障不用我们制造。"""
+    inj = getattr(bridge, "faults", None)
+    if inj is None:
+        log("故障注入只在数字义体（--body sim）上可用", "err")
+        return
+    kind = str(cmd.get("kind", ""))
+    try:
+        f = inj.arm(kind, now=time.time(), delay_s=float(cmd.get("delay", 0.0)),
+                    duration_s=float(cmd.get("seconds", 6.0)))
+    except ValueError as e:
+        log(str(e), "err")
+        return
+    log(f"注入故障 {kind}：{FAULT_KINDS[kind]}（{f.duration_s:.0f} 秒后自动恢复）", "warn")
+
+
+def _op_recall(cmd, session, bridge, log):
+    """让 Ghost 主动去经验库里查一次。由服务注入 session.memory。"""
+    mem = getattr(session, "memory", None)
+    if mem is None:
+        log("没有加载经验库（--no-memory）", "err")
+        return
+    q = str(cmd.get("query", "")).strip()
+    if not q:
+        log("recall 需要 query", "err")
+        return
+    mem.recall(q, k=int(cmd.get("k", 3)))
+
+
 def _op_quit(cmd, session, bridge, log):
     raise KeyboardInterrupt
 
@@ -118,6 +149,8 @@ _HANDLERS: dict[str, Callable] = {
     "estop": _op_estop,
     "arm": _op_arm,
     "reload": _op_reload,
+    "fault": _op_fault,
+    "recall": _op_recall,
     "quit": _op_quit,
 }
 

@@ -22,6 +22,7 @@ class Session:
     ramp_cap_nm_s: float                      # 命令行 --ramp 给的全局上限
     policy: Any = None
     monitor: Optional[SafetyMonitor] = None
+    memory: Optional[Any] = None          # agent.memory.GhostMemory；没接经验层时为 None
     armed: bool = True
     seq: int = 0                              # 已处理到的命令序号
     pulse_until: float = 0.0                  # keepalive 脉冲的截止时刻
