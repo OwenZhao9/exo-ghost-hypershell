@@ -6,6 +6,9 @@ __pycache__/
 # 运行时产生的数据（每次 ENABLE 自动落盘，单个会话可达几十 MB）
 data/*.csv
 data/*.log
+data/*.jsonl          # 会话流水
+data/*.html           # 生成的交付单（示例见 docs/会话交付单-示例.html）
+data/genes.db         # 经验库，每次启动从 agent/capsules.py 自动播种
 data/cmd.json
 data/status.json
 !data/samples/
