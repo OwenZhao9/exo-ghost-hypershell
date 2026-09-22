@@ -40,17 +40,22 @@ def console_line(*, state: str, policy: str, gain: float, hz: float,
 
 def snapshot(*, t: float, state: str, policy: str, gain: float, max_torque: float,
              hz: float, work_J: float, tripped: Optional[str], legs_offline: bool,
-             reconnects: int, memory: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+             reconnects: int, memory: Optional[Mapping[str, Any]] = None,
+             decision: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
     """推给仪表盘的那一包（不含逐帧读数）。
 
     `memory` 是 `agent.memory.GhostMemory.snapshot()` 的输出：继承了几条经验、
-    最近一次回忆查到了什么。没接经验层时为 None，仪表盘据此隐藏那一栏。
+    最近一次回忆查到了什么。`decision` 是 `agent.decide.GhostDecider.snapshot()`：
+    最近一次决策想选什么、置信度多少、有没有被门控拦下。
+    没接对应的层时为 None，仪表盘据此隐藏那一栏。
     """
     out = {"t": t, "state": state, "policy": policy, "gain": gain, "max": max_torque,
            "hz": hz, "work_J": work_J, "tripped": tripped,
            "legs_offline": legs_offline, "reconnects": reconnects}
     if memory is not None:
         out["memory"] = dict(memory)
+    if decision is not None:
+        out["decision"] = dict(decision)
     return out
 
 

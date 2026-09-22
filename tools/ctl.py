@@ -32,6 +32,10 @@ def main():
     ft.add_argument("kind", choices=sorted(FAULT_KINDS))
     ft.add_argument("--delay", type=float, default=0.0, help="几秒后开始")
     ft.add_argument("--seconds", type=float, default=6.0, help="持续多久后自动恢复")
+    from bridge.wearer import GAITS
+    gt = sub.add_parser("gait", help="给数字义体挂一个穿戴者按步态走路（仅 --body sim）：" +
+                        "；".join(g.note for g in GAITS.values()))
+    gt.add_argument("name", nargs="?", default=None, choices=[*sorted(GAITS), "off"])
     rc = sub.add_parser("recall", help="让 Ghost 去经验库里查一次，结果出现在事件栏")
     rc.add_argument("query"); rc.add_argument("-k", type=int, default=3)
     for n in ("zero", "estop", "arm", "quit", "status", "reload"): sub.add_parser(n)
@@ -54,6 +58,7 @@ def main():
         cmd.update(op="torque", L=+abs(a.nm), R=-abs(a.nm), seconds=a.seconds, max=1.5)
     if a.op == "fault": cmd.update(kind=a.kind, delay=a.delay, seconds=a.seconds)
     if a.op == "recall": cmd.update(query=a.query, k=a.k)
+    if a.op == "gait": cmd.update(name=None if a.name in (None, "off") else a.name)
     if a.op == "hold":
         cmd.update(kp=a.kp, kd=a.kd, ki=a.ki, max=a.max, slew=a.slew)
         for leg, v in (("L", a.left), ("R", a.right)):

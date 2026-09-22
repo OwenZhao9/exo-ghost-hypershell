@@ -11,6 +11,7 @@ from typing import Any, Callable, Mapping
 
 import control.policies as P
 from bridge.faults import FAULT_KINDS
+from bridge.wearer import GAITS
 from control.safety import PROFILES, SafetyMonitor
 
 Log = Callable[..., None]
@@ -124,6 +125,19 @@ def _op_fault(cmd, session, bridge, log):
     log(f"注入故障 {kind}：{FAULT_KINDS[kind]}（{f.duration_s:.0f} 秒后自动恢复）", "warn")
 
 
+def _op_gait(cmd, session, bridge, log):
+    """给数字义体挂一个"穿戴者"，让它按给定步态走路。真机上人自己走，不需要这个。"""
+    if not hasattr(bridge, "set_gait"):
+        log("步态只在数字义体（--body sim）上可用", "err")
+        return
+    name = cmd.get("name") or None
+    if name is not None and name not in GAITS:
+        log(f"未知步态 {name!r}，可用：{sorted(GAITS)}", "err")
+        return
+    g = bridge.set_gait(name)
+    log("穿戴者已摘下，腿回到自由悬挂" if g is None else f"穿戴者开始{g.note}", "ok")
+
+
 def _op_recall(cmd, session, bridge, log):
     """让 Ghost 主动去经验库里查一次。由服务注入 session.memory。"""
     mem = getattr(session, "memory", None)
@@ -150,6 +164,7 @@ _HANDLERS: dict[str, Callable] = {
     "arm": _op_arm,
     "reload": _op_reload,
     "fault": _op_fault,
+    "gait": _op_gait,
     "recall": _op_recall,
     "quit": _op_quit,
 }

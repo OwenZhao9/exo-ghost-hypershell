@@ -24,6 +24,7 @@ from sim2real_actuator import ActuatorParams, ActuatorSim, identify, load_column
 from .limits import clamp as clamp_torque
 from .limits import effective_limit, ramp_step, step_toward
 from .faults import FaultInjector
+from .wearer import GAITS, Gait, angles as gait_angles
 from .logger import SessionLogger
 from .plant import DEG2RAD, LegLoad
 from .protocol import DEFAULT_LIMIT_NM, DEFAULT_RAMP_NM_PER_S, SEND_HZ, Sample
@@ -106,6 +107,8 @@ class SimBridge:
         self._logger = SessionLogger(log_dir, prefix="sim")
         self._t0 = 0.0
         self.faults = FaultInjector()        # 按需复现真机故障，见 bridge/faults.py
+        self.gait: Optional[Gait] = None     # 挂一个"穿戴者"在上面走路，见 bridge/wearer.py
+        self._gait_t0 = 0.0
 
     # ---------- 与 ExoBridge 一致的门面 ----------
     def open(self) -> "SimBridge":
@@ -137,6 +140,12 @@ class SimBridge:
     @property
     def commanded(self) -> tuple[float, float]:
         return self._current
+
+    def set_gait(self, name: Optional[str]) -> Optional[Gait]:
+        """挂上/摘掉穿戴者。name=None 表示摘掉，腿回到自由悬挂。"""
+        self.gait = None if name is None else GAITS[name]
+        self._gait_t0 = time.perf_counter()
+        return self.gait
 
     def set_ramp(self, nm_per_s: float) -> None:
         self.ramp_step = ramp_step(nm_per_s, self.send_period)
@@ -208,14 +217,22 @@ class SimBridge:
             self._current = (cl, cr)
 
             states = {}
+            # 挂了穿戴者时：轨迹由人决定（人腿力矩比设备大一个数量级），
+            # 我们的力矩照常记录、照常算做功，但不改变轨迹。见 bridge/wearer.py。
+            driven = gait_angles(self.gait, time.perf_counter() - self._gait_t0) if self.gait else None
             for leg, tau in (("L", cl), ("R", cr)):
                 sim = self.sims[leg]
-                pos0, vel0 = self.state[leg]
-                ext = self.load.external_nm(pos0, vel0)
-                st = sim.step(tau, dt, external_nm=ext)
-                pos, vel = self.load.clamp(st.pos_rad, st.vel_rad_s)
-                if (pos, vel) != (st.pos_rad, st.vel_rad_s):
-                    sim.reset(pos_rad=pos, vel_rad_s=vel)      # 撞到限位就吸附回去
+                if driven is not None:
+                    pos, vel = driven[leg]
+                    pos, vel = self.load.clamp(pos, vel)
+                    sim.reset(pos_rad=pos, vel_rad_s=vel)
+                else:
+                    pos0, vel0 = self.state[leg]
+                    ext = self.load.external_nm(pos0, vel0)
+                    st = sim.step(tau, dt, external_nm=ext)
+                    pos, vel = self.load.clamp(st.pos_rad, st.vel_rad_s)
+                    if (pos, vel) != (st.pos_rad, st.vel_rad_s):
+                        sim.reset(pos_rad=pos, vel_rad_s=vel)  # 撞到限位就吸附回去
                 self.state[leg] = (pos, vel)
                 states[leg] = (pos * RAD2DEG, vel * RAD2DEG)
 

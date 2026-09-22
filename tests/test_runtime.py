@@ -178,4 +178,4 @@ def test_unknown_op_is_logged_not_raised():
 def test_every_known_op_has_a_handler():
     assert set(commands.KNOWN_OPS) == {
         "policy", "zero", "hold", "torque", "estop", "arm", "reload", "quit",
-        "fault", "recall"}
+        "fault", "recall", "gait"}
