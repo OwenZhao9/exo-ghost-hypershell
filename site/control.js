@@ -1,4 +1,4 @@
-import { controlState } from "./live.js?v=20260924-ui";
+import { controlState } from "./live.js?v=20260924-ui2";
 
 // Same first-use values as the product workspace. No automatic mode selection.
 export const MODES = Object.freeze({

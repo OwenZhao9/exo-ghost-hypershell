@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { connectTelemetry } from "./live.js?v=20260924-ui";
+import { connectTelemetry } from "./live.js?v=20260924-ui2";
 import { modeReadiness, modeCommand, splitResistCommand,
-  bilateralCommand, singleLegCommand } from "./control.js?v=20260924-ui";
+  bilateralCommand, singleLegCommand } from "./control.js?v=20260924-ui2";
 import { GaitPatternDetector, KneeFollower, YawFollower, kneeFlexRadians } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
@@ -41,7 +41,6 @@ const applyLeftLeg = document.getElementById("apply-left-leg");
 const applyRightLeg = document.getElementById("apply-right-leg");
 const applyBothLegs = document.getElementById("apply-both-legs");
 const zeroButton = document.getElementById("control-zero");
-const controlProfile = document.getElementById("control-profile");
 const safetyDialog = document.getElementById("control-safety-dialog");
 const safetyMessage = document.getElementById("control-safety-message");
 const safetyCancel = document.getElementById("control-safety-cancel");
@@ -328,11 +327,6 @@ function updateControls() {
     pendingControl = null;
     safetyDialog.close();
   }
-  controlProfile.textContent = live.connected && live.statusAgeMs < 3000
-    ? profile === "table" ? "桌面测试 · 仅限设备未穿戴时使用"
-      : profile === "wearing" ? "穿戴使用 · 启动前确认穿戴安全"
-        : "等待确认设备状态"
-    : "等待确认设备状态";
   assistButton.disabled = resistButton.disabled = !canControl;
   const bilateralSupported = live.status?.capabilities?.bilateral_modes === true;
   const splitSupported = live.status?.capabilities?.split_resist === true;
@@ -370,9 +364,11 @@ function updateControls() {
       : recent
         ? `运动建议：${names[advice.applied] || "请查看设备状态"}${advice.held_by === "safety" ? " · 设备保护中" : ""}`
         : "运动建议：等待运动分析";
-  controlReason.textContent = mode !== "live" ? "切换到实时数据后可操作"
-    : canControl && confirmedProfile !== profile
-      ? "首次操作时确认当前测试状态" : preflight.reason;
+}
+
+function showControlMessage(message) {
+  controlReason.textContent = message;
+  controlReason.hidden = false;
 }
 
 function runControlAction(buildCommand, successText = "请求已发送，等待设备状态确认") {
@@ -390,8 +386,8 @@ function runControlAction(buildCommand, successText = "请求已发送，等待�
       return;
     }
     telemetry.send(buildCommand(modeReadiness(live, confirmedProfile)));
-    controlReason.textContent = successText;
-  } catch (error) { controlReason.textContent = error.message; }
+    showControlMessage(successText);
+  } catch (error) { showControlMessage(error.message); }
 }
 
 safetyCancel.addEventListener("click", () => {
@@ -405,12 +401,12 @@ safetySend.addEventListener("click", () => {
   safetyDialog.close();
   if (!pending) return;
   if (live.status?.profile !== pending.profile) {
-    controlReason.textContent = "设备使用状态已变化，请重新选择运动方式";
+    showControlMessage("设备使用状态已变化，请重新选择运动方式");
     return;
   }
   const preflight = modeReadiness(live, pending.profile);
   if (!preflight.ready) {
-    controlReason.textContent = preflight.reason;
+    showControlMessage(preflight.reason);
     return;
   }
   confirmedProfile = pending.profile;
@@ -469,8 +465,8 @@ applyRightLeg.addEventListener("click", () => applyLegSettings("r"));
 applyBothLegs.addEventListener("click", () => applyLegSettings("both"));
 
 zeroButton.addEventListener("click", () => {
-  try { telemetry.send({ op: "zero" }); controlReason.textContent = "松劲请求已发送"; }
-  catch (error) { controlReason.textContent = error.message; }
+  try { telemetry.send({ op: "zero" }); showControlMessage("松劲请求已发送"); }
+  catch (error) { showControlMessage(error.message); }
 });
 const telemetry = connectTelemetry({ onChange: (next) => {
   live = next;
