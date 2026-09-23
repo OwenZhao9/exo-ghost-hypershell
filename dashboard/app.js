@@ -5,8 +5,9 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const host = location.hostname || 'localhost';
-const WS = `ws://${host}:8765`;
-$('addr').textContent = `手机：http://${host}:8000`;
+let WS = null;
+let bodyMode = 'real';
+$('addr').textContent = `手机：http://${host}:${location.port || 80}`;
 
 // ---------- 数据缓冲（保留 120 秒，可回看） ----------
 const KEEP = 120;
@@ -221,9 +222,19 @@ function connect(){
 }
 function setState(s){
   const el = $('state'); el.className = 'badge '+s;
-  el.textContent = {ARMED:'运行中', TRIPPED:'急停锁存', LEGS_OFF:'腿板掉线', RECONN:'重连中', QUIET:'安全等待', OFFLINE:'未连接'}[s] || s;
+  const label = {ARMED:'运行中', TRIPPED:'急停锁存', LEGS_OFF:'腿板掉线', RECONN:'重连中', QUIET:'安全等待', OFFLINE:'未连接'}[s] || s;
+  el.textContent = bodyMode === 'sim' ? `仿真 · ${label}` : label;
 }
-connect();
+fetch('/runtime-config.json', {cache:'no-store'})
+  .then(response => { if (!response.ok) throw new Error('服务配置不可用'); return response.json(); })
+  .then(config => {
+    if (!Number.isInteger(config.ws_port) || config.ws_port < 1 || config.ws_port > 65535 ||
+        !['real', 'sim'].includes(config.body)) throw new Error('服务配置无效');
+    WS = `ws://${host}:${config.ws_port}`;
+    bodyMode = config.body;
+    connect();
+  })
+  .catch(() => { $('conn').textContent = '服务配置不可用'; });
 const send = o => { if (ws && ws.readyState===1) ws.send(JSON.stringify(o)); };
 
 // ---------- 控件 ----------

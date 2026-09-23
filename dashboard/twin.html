@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exo Ghost · 3D 数字孪生</title>
+  <link rel="stylesheet" href="twin.css">
+  <script type="importmap">
+    {"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}
+  </script>
+</head>
+<body>
+  <main class="layout">
+    <header class="topbar">
+      <div><p class="eyebrow">EXO GHOST / DIGITAL TWIN</p><h1>外骨骼 3D 数字孪生</h1></div>
+      <div class="top-actions"><span id="device-state" class="state">等待数据</span><a id="control-link" href="http://localhost:8000/" target="_blank" rel="noopener">真机控制台 ↗</a></div>
+    </header>
+    <section class="stage">
+      <div id="viewport" aria-label="外骨骼三维视图"></div>
+      <div class="stage-head"><span id="source-tag">实时真机</span><span id="frame-rate">— Hz</span></div>
+      <div id="model-note" class="model-note">正在读取模型文件…</div>
+      <div class="stage-foot"><span>拖动旋转视角 · 滚轮缩放</span><span id="pose-note">无有效关节姿态</span></div>
+    </section>
+    <aside class="panel">
+      <section class="card">
+        <h2>数据来源</h2>
+        <div class="mode-row"><button id="live-mode" class="active">实时真机</button><button id="sim-mode">电脑仿真</button><button id="replay-mode">录制回放</button></div>
+        <p id="source-detail" class="muted">等待外骨骼遥测；界面不会生成虚假的实时动作。</p>
+      </section>
+      <section id="sim-controls" class="card" hidden>
+        <h2>电脑仿真步态</h2>
+        <div class="mode-row"><button data-gait="slow">慢走</button><button data-gait="walk">步行</button><button data-gait="fast">快走</button><button data-gait="">停止</button></div>
+        <p class="muted">仅驱动电脑中的模型，不向真实外骨骼发送命令。</p>
+      </section>
+      <section class="card">
+        <h2>左右髋关节</h2>
+        <div class="leg-row"><span class="mark left"></span><span>左髋</span><strong id="left-angle">—</strong><small id="left-speed">— °/s</small></div>
+        <div class="leg-row"><span class="mark right"></span><span>右髋</span><strong id="right-angle">—</strong><small id="right-speed">— °/s</small></div>
+      </section>
+      <section class="card">
+        <h2 id="torque-title">下发力矩</h2>
+        <div class="metric"><span>左侧</span><strong id="left-torque">—</strong><small>Nm</small></div>
+        <div class="metric"><span>右侧</span><strong id="right-torque">—</strong><small>Nm</small></div>
+      </section>
+      <section class="card">
+        <h2>腰部姿态</h2>
+        <div class="metric"><span>俯仰 Pitch</span><strong id="pitch">—</strong><small>°</small></div>
+        <div class="metric"><span>横滚 Roll</span><strong id="roll">—</strong><small>°</small></div>
+        <div class="metric"><span>航向 Yaw</span><strong id="yaw">—</strong><small>°</small></div>
+      </section>
+      <section id="replay-controls" class="card" hidden>
+        <h2>录制回放</h2>
+        <input id="timeline" type="range" min="0" max="1000" value="0" aria-label="回放位置">
+        <div class="play-row"><button id="play-pause">暂停</button><span id="play-time">0.0 / 0.0 s</span></div>
+        <p class="muted">来自真实外骨骼历史录制；回放只驱动画面，不向设备发送命令。</p>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="twin.js"></script>
+</body>
+</html>

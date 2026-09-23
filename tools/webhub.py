@@ -13,12 +13,24 @@ class _Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
     def end_headers(self):
         self.send_header("Cache-Control", "no-store"); super().end_headers()
+    def do_GET(self):
+        if self.path.split("?", 1)[0] == "/runtime-config.json":
+            payload = json.dumps(self.runtime_config).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        super().do_GET()
 
 
 class WebHub:
-    def __init__(self, on_command: Callable[[dict], None], ws_port: int = 8765, http_port: int = 8000, sample_div: int = 3):
+    def __init__(self, on_command: Callable[[dict], None], ws_port: int = 8765,
+                 http_port: int = 8000, sample_div: int = 3, body: str = "real"):
         self.on_command = on_command
         self.ws_port, self.http_port, self.sample_div = ws_port, http_port, sample_div
+        self.body = body
         self._clients: set = set()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._n = 0
@@ -31,7 +43,10 @@ class WebHub:
         threading.Thread(target=self._run_http, name="webhub-http", daemon=True).start()
 
     def _run_http(self) -> None:
-        handler = lambda *a, **k: _Quiet(*a, directory=DASH_DIR, **k)
+        class Handler(_Quiet):
+            pass
+        Handler.runtime_config = {"ws_port": self.ws_port, "body": self.body}
+        handler = lambda *a, **k: Handler(*a, directory=DASH_DIR, **k)
         http.server.ThreadingHTTPServer.allow_reuse_address = True
         try:
             srv = http.server.ThreadingHTTPServer(("0.0.0.0", self.http_port), handler)

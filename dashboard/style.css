@@ -17,7 +17,7 @@
   .stat .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
   .spacer{flex:1}
   .tools{display:flex;gap:6px;align-items:center}
-  .tools button,.seg button{background:#1d212b;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:6px 11px;font-size:13px;cursor:pointer}
+  .tools button,.tools a,.seg button{background:#1d212b;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:6px 11px;font-size:13px;cursor:pointer;text-decoration:none}
   .tools button.on,.seg button.on{border-color:var(--blue);color:var(--blue);background:#12203a}
 
   main{flex:1;display:flex;min-height:0}

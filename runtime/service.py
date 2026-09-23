@@ -40,6 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help=f"每 N 秒无运动时给左腿一个 {KEEPALIVE_PULSE_NM} Nm×"
                          f"{KEEPALIVE_PULSE_S} s 的脉冲，试图阻止设备闲置待机（0=关）")
     ap.add_argument("--no-web", action="store_true", help="不启动网页仪表盘")
+    ap.add_argument("--http-port", type=int, default=8000, help="网页端口")
+    ap.add_argument("--ws-port", type=int, default=8765, help="遥测 WebSocket 端口")
+    ap.add_argument("--state-dir", default="data", help="命令、状态和会话记录目录")
     ap.add_argument("--no-memory", action="store_true",
                     help="不加载经验库（默认加载 data/genes.db，遇到设备异常会自动回忆解法）")
     ap.add_argument("--memory-db", default="data/genes.db", help="经验库路径")
@@ -64,16 +67,17 @@ def make_bridge(a, session):
     if want == "sim":
         from bridge.sim import SimBridge
         print("身体：数字义体（sim）—— 参数来自真机录制的辨识结果", flush=True)
-        return SimBridge(torque_limit=a.limit, ramp_nm_per_s=a.ramp, safety_check=safety)
+        return SimBridge(torque_limit=a.limit, ramp_nm_per_s=a.ramp,
+                         safety_check=safety, log_dir=a.state_dir)
     print("身体：真外骨骼（real）", flush=True)
     return ExoBridge(port=a.port, torque_limit=a.limit, ramp_nm_per_s=a.ramp,
-                     safety_check=safety)
+                     safety_check=safety, log_dir=a.state_dir)
 
 
-def read_cmd_file(last_seq: int) -> Optional[dict]:
+def read_cmd_file(last_seq: int, path: str = CMD_FILE) -> Optional[dict]:
     """读命令文件；序号没涨就当没有新命令。"""
     try:
-        with open(CMD_FILE) as f:
+        with open(path) as f:
             c = json.load(f)
     except Exception:
         return None
@@ -82,13 +86,19 @@ def read_cmd_file(last_seq: int) -> Optional[dict]:
 
 def main(argv: Optional[list[str]] = None) -> None:
     a = build_parser().parse_args(argv)
+    os.makedirs(a.state_dir, exist_ok=True)
+    cmd_file = os.path.join(a.state_dir, "cmd.json")
+    status_file = os.path.join(a.state_dir, "status.json")
     prof = PROFILES[a.profile]
     session = Session(profile=prof, ramp_cap_nm_s=a.ramp)
 
     cmdq: "queue.Queue[dict]" = queue.Queue()
-    hub = None if a.no_web else WebHub(on_command=cmdq.put)
+    hub = None if a.no_web else WebHub(on_command=cmdq.put,
+                                       http_port=a.http_port, ws_port=a.ws_port)
 
     bridge = make_bridge(a, session)
+    if hub:
+        hub.body = "sim" if hasattr(bridge, "set_gait") else "real"
     memory = None
     decider = None
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
@@ -227,13 +237,14 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     # 启动时忽略上次遗留的命令文件，避免重放旧策略
     try:
-        session.seq = json.load(open(CMD_FILE)).get("seq", 0)
+        session.seq = json.load(open(cmd_file)).get("seq", 0)
     except Exception:
         pass
 
     if hub:
         hub.start()
-        print(f"仪表盘：http://localhost:8000  （手机：http://{lan_ip()}:8000）", flush=True)
+        print(f"仪表盘：http://localhost:{a.http_port}  "
+              f"（手机：http://{lan_ip()}:{a.http_port}）", flush=True)
     version_info = "pending"
     try:
         bridge.open()
@@ -311,7 +322,7 @@ def main(argv: Optional[list[str]] = None) -> None:
                                      "policy": "assist", "gain": want, "max": 0.8}, "ghost")
 
             # 命令：文件与网页两条来源，同一个分发器
-            c = read_cmd_file(session.seq)
+            c = read_cmd_file(session.seq, cmd_file)
             if c:
                 session.seq = c["seq"]
                 run_cmd(c, "cli")
@@ -343,9 +354,10 @@ def main(argv: Optional[list[str]] = None) -> None:
                     scale=stats["scale"], reflex=session.monitor.scale_detail(),
                     memory=None if memory is None else memory.snapshot(),
                     decision=None if decider is None else decider.snapshot())
+                base["body"] = "sim" if hasattr(bridge, "set_gait") else "real"
                 if hub:
                     hub.push_status(base)
-                status.write_status_file(STATUS_FILE, status.full_snapshot(
+                status.write_status_file(status_file, status.full_snapshot(
                     base, ldeg=s.ldeg if s else None, rdeg=s.rdeg if s else None,
                     ldps=s.ldps if s else None, rdps=s.rdps if s else None,
                     tau_l=cl, tau_r=cr, scale=stats["scale"], log=bridge.log_path))

@@ -1,0 +1,22 @@
+{
+  "model": "assets/hypershell-x-max-s-textured-parts.glb",
+  "axis": "z",
+  "sign": { "left": -1, "right": 1 },
+  "sim_sign": { "left": 1, "right": 1 },
+  "use_imu": false,
+  "left": {
+    "pivot": [-0.03, 0.18, -0.31],
+    "names": [
+      "tripo_part_3", "tripo_part_9", "tripo_part_11", "tripo_part_12",
+      "tripo_part_14", "tripo_part_16", "tripo_part_17", "tripo_part_19",
+      "tripo_part_20", "tripo_part_22", "tripo_part_23", "tripo_part_24"
+    ]
+  },
+  "right": {
+    "pivot": [-0.03, 0.18, 0.31],
+    "names": [
+      "tripo_part_1", "tripo_part_5", "tripo_part_10",
+      "tripo_part_15", "tripo_part_18"
+    ]
+  }
+}

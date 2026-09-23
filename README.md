@@ -55,7 +55,27 @@ uv run python -m tools.monitor --seconds 30        # 2. 只读看 180 Hz 数据�
 uv run python -m runtime.service --profile table   # 3. 常驻服务 + 仪表盘
 ```
 
-`--body auto`（默认）找得到真机就用真机，找不到就自动换数字义体。
+`--body real` 是默认值；`--body auto` 找得到真机就用真机，找不到就自动换数字义体。
+
+### 3D 外骨骼视图
+
+真机服务在 8000/8765 运行时，可打开 `http://localhost:8000/twin.html`。
+页面只在髋关节数据有效时用真实角度更新模型；腿板离线时保留最后姿态，
+不会把仿真数据当成真机数据。右侧可切换到历史实测回放。
+
+如要同时演示电脑仿真，在另一个终端启动独立状态目录的服务：
+
+```bash
+uv run python -m runtime.service --body sim --profile table \
+  --no-memory --no-decide --http-port 8001 --ws-port 8766 \
+  --state-dir data/sim-runtime
+# 打开 http://localhost:8001/twin.html，选择「电脑仿真」，再选择步态
+```
+
+仿真和真机用不同的 WebSocket 端口，页面会检查数据来源。仿真步态是
+`bridge/wearer.py` 的运动学轨迹，执行器参数来自真机录制；它不是人体动力学仿真。
+3D 外形来自经过用户确认授权的 Hypershell 官方图片，经 Tripo 多视角生成。
+模型来源与生成任务见 [dashboard/assets/README.md](dashboard/assets/README.md)。
 
 另开一个终端发命令：
 
