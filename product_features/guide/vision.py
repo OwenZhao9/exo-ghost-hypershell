@@ -17,11 +17,11 @@ MODEL = 'evomap-gemini-3.1-pro-preview'
 KEY_ENV = 'EVOMAP_GATEWAY_API_KEY'
 MAX_JPEG_BYTES = 5 * 1024 * 1024
 
-PROMPT = (
-    '请用简体中文简短描述这张照片中能直接看见的环境，以及可能影响行走的物体。'
-    '只描述画面中的事实；不确定时明确说不确定。不要声称路线安全、可通行，'
-    '不要给出移动方向、距离或外骨骼控制指令。'
+SYSTEM_PROMPT = (
+    '你是视觉描述助手。只输出一到两句直接观察到的画面事实。'
+    '不要分析指令、列清单、推断安全性或给出行动方向。'
 )
+PROMPT = '请用简体中文描述这张图中可见的环境与可能影响行走的物体；看不清时直接说看不清。'
 
 
 def photo_path(directory: Path, filename: str) -> Path:
@@ -68,17 +68,20 @@ def describe_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) -> str
     image = base64.b64encode(jpeg).decode('ascii')
     body = json.dumps({
         'model': MODEL,
-        'messages': [{'role': 'user', 'content': [
+        'reasoning_effort': 'low',
+        'temperature': 0,
+        'messages': [{'role': 'system', 'content': SYSTEM_PROMPT},
+                     {'role': 'user', 'content': [
             {'type': 'text', 'text': PROMPT},
             {'type': 'image_url', 'image_url': {'url': f'data:image/jpeg;base64,{image}'}},
         ]}],
-        'max_tokens': 220,
+        'max_tokens': 2048,
     }, ensure_ascii=False).encode('utf-8')
     request = Request(ENDPOINT, data=body, headers={
         'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
     }, method='POST')
     try:
-        with opener(request, timeout=60) as response:
+        with opener(request, timeout=75) as response:
             result = json.load(response)
     except HTTPError as error:
         if error.code in {401, 403}:
