@@ -69,10 +69,12 @@ def test_latest_photo_is_displayed_locally_without_gateway_upload(tmp_path):
     result = app.routes['GET', '/api/guide/latest']({})['photo']
     assert result['filename'] == 'new.jpg'
     assert base64.b64decode(result['src'].split(',', 1)[1]) == JPEG
+    image = app.routes['POST', '/api/guide/image']({'filename': 'new.jpg'})
+    assert base64.b64decode(image['src'].split(',', 1)[1]) == JPEG
     assert app.routes['GET', '/api/guide/demo']({}) == {'available': False}
 
 
-def test_demo_capture_pins_unit_and_stops_without_upload(tmp_path):
+def test_demo_capture_appends_results_and_restores_them(tmp_path, monkeypatch):
     shots = tmp_path / 'shots'
     shots.mkdir()
     fake = tmp_path / 'luma'
@@ -83,17 +85,25 @@ assert sys.argv[1:3] == ['photo', '--ai']
 pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
 ''')
     fake.chmod(0o700)
-    demo = DemoCapture(fake, shots, 'E06-0194', recognize=False)
+    store = Store(tmp_path / 'product.db')
+    decisions = iter([{'direction': 'left', 'description': '左侧可见空地。'},
+                      {'direction': 'right', 'description': '右侧可见空地。'}])
+    monkeypatch.setattr('product_features.guide.demo.analyze_demo_jpeg', lambda _: next(decisions))
+    demo = DemoCapture(fake, shots, 'E06-0194', recognize=True,
+                       pause_seconds=2, max_frames=2, store=store)
     demo.start()
-    until = time.monotonic() + 5
-    while demo.status()['sequence'] < 1 and time.monotonic() < until:
+    until = time.monotonic() + 6
+    while (len(demo.status()['history']) < 2 or demo.status()['running']) and time.monotonic() < until:
         time.sleep(.02)
     demo.stop()
     demo.close()
     state = demo.status()
-    assert state['sequence'] >= 1
-    assert state['direction'] == 'unknown'
-    assert (shots / state['filename']).is_file()
+    assert state['captured_count'] == 2
+    assert [item['direction'] for item in state['history']] == ['left', 'right']
+    assert [item['description'] for item in state['history']] == ['左侧可见空地。', '右侧可见空地。']
+    assert all((shots / item['filename']).is_file() for item in state['history'])
+    restored = DemoCapture(fake, shots, 'E06-0194', recognize=False, store=store)
+    assert restored.status()['history'] == state['history']
 
 
 def test_demo_direction_falls_back_when_uncertain():

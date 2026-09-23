@@ -49,7 +49,7 @@ def photo_path(directory: Path, filename: str) -> Path:
     return path
 
 
-def recent_photos(directory: Path | None, limit: int = 12) -> list[dict]:
+def recent_photos(directory: Path | None, limit: int | None = 12) -> list[dict]:
     if directory is None or not directory.is_dir():
         return []
     root = directory.resolve()

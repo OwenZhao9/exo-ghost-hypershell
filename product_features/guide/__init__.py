@@ -12,7 +12,7 @@ def register(app):
     directory = app.ctx.glasses_dir
 
     def photos(_):
-        return {'photos': recent_photos(directory),
+        return {'photos': recent_photos(directory, limit=None),
                 'capture_available': directory is not None and directory.is_dir(),
                 'vision_available': bool(os.environ.get(KEY_ENV))}
 
@@ -38,6 +38,16 @@ def register(app):
         return {'photo': {**item, 'src': 'data:image/jpeg;base64,' +
                 base64.b64encode(path.read_bytes()).decode('ascii')}}
 
+    def image(data):
+        if directory is None or not directory.is_dir():
+            raise ValueError('尚未连接眼镜照片目录')
+        filename = data.get('filename')
+        if not isinstance(filename, str):
+            raise ValueError('请选择一张眼镜照片')
+        path = photo_path(directory, filename)
+        return {'filename': filename, 'src': 'data:image/jpeg;base64,' +
+                base64.b64encode(path.read_bytes()).decode('ascii')}
+
     def demo_status(_):
         demo = app.ctx.guide_demo
         return {'available': demo is not None,
@@ -57,6 +67,7 @@ def register(app):
 
     app.route('GET', '/api/guide/photos', photos)
     app.route('GET', '/api/guide/latest', latest)
+    app.route('POST', '/api/guide/image', image)
     app.route('POST', '/api/guide/describe', describe)
     app.route('GET', '/api/guide/demo', demo_status)
     app.route('POST', '/api/guide/demo/start', demo_start)

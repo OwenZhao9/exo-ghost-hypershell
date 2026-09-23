@@ -151,7 +151,8 @@ def main(argv=None):
         from product_features.guide.demo import DemoCapture
         try:
             ctx.guide_demo = DemoCapture(a.glasses_bin, ctx.glasses_dir,
-                                         a.glasses_unit, recognize=a.guide_demo_upload)
+                                         a.glasses_unit, recognize=a.guide_demo_upload,
+                                         store=ctx.store)
         except ValueError as error:
             ap.error(str(error))
     app = App(ctx)

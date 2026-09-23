@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import sqlite3
 import subprocess
 import threading
 import time
@@ -20,7 +21,7 @@ UNIT_NAME = re.compile(r'E\d{2}-[0-9A-F]{4}\Z')
 
 class DemoCapture:
     def __init__(self, binary: Path, directory: Path, unit: str, *, recognize: bool,
-                 pause_seconds: float = 3, max_frames: int = 10):
+                 pause_seconds: float = 3, max_frames: int = 10, store=None):
         if not binary.is_file() or not os.access(binary, os.X_OK):
             raise ValueError('眼镜拍照程序不存在或不可执行')
         if not directory.is_dir():
@@ -35,6 +36,16 @@ class DemoCapture:
         self.recognize = recognize
         self.pause_seconds = max(2, pause_seconds)
         self.max_frames = max_frames
+        self.store = store
+        try:
+            saved = store.get('guide_demo_history', []) if store is not None else []
+        except sqlite3.Error:
+            raise ValueError('无法读取本机拍照记录') from None
+        self._history = ([{**item, 'state': 'interrupted' if item.get('state') == 'analyzing'
+                           else item.get('state', 'interrupted')}
+                          for item in saved if isinstance(item, dict) and
+                          isinstance(item.get('filename'), str)]
+                         if isinstance(saved, list) else [])
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -42,24 +53,24 @@ class DemoCapture:
         self._state = {'running': False, 'phase': 'idle', 'filename': None,
                        'captured_at': None, 'capture_seconds': None,
                        'analysis_seconds': None, 'direction': 'unknown',
-                       'description': '', 'error': None, 'sequence': 0,
+                       'description': '', 'error': None, 'sequence': len(self._history),
                        'captured_count': 0, 'max_frames': max_frames,
                        'recognize_enabled': recognize}
 
     def status(self) -> dict:
         with self._lock:
-            return dict(self._state)
+            return {**self._state, 'history': [dict(item) for item in self._history]}
 
     def start(self) -> dict:
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
-                return dict(self._state)
+                return self._snapshot_locked()
             self._stop.clear()
             self._state.update(running=True, phase='scanning', error=None,
                                direction='unknown', description='', captured_count=0)
             self._thread = threading.Thread(target=self._run, name='glasses-demo', daemon=True)
             self._thread.start()
-            return dict(self._state)
+            return self._snapshot_locked()
 
     def stop(self) -> dict:
         self._stop.set()
@@ -67,7 +78,7 @@ class DemoCapture:
             process = self._process
             if self._state['running']:
                 self._state['phase'] = 'stopping'
-            state = dict(self._state)
+            state = self._snapshot_locked()
         if process is not None and process.poll() is None:
             process.terminate()
         return state
@@ -81,6 +92,24 @@ class DemoCapture:
     def _set(self, **changes) -> None:
         with self._lock:
             self._state.update(changes)
+
+    def _snapshot_locked(self) -> dict:
+        return {**self._state, 'history': [dict(item) for item in self._history]}
+
+    def _save_history(self) -> None:
+        if self.store is not None:
+            with self._lock:
+                snapshot = [dict(item) for item in self._history]
+            try:
+                self.store.set('guide_demo_history', snapshot)
+            except sqlite3.Error:
+                self._set(error='本机拍照记录保存失败')
+
+    def _update_last(self, filename: str, **changes) -> None:
+        with self._lock:
+            if self._history and self._history[-1]['filename'] == filename:
+                self._history[-1].update(changes)
+        self._save_history()
 
     def _capture(self) -> tuple[Path, float]:
         if self._stop.is_set():
@@ -120,20 +149,32 @@ class DemoCapture:
                     self._set(phase='capturing', error=None)
                     path, capture_seconds = self._capture()
                     captured_at = path.stat().st_mtime
-                    self._set(filename=path.name, captured_at=captured_at,
-                              capture_seconds=round(capture_seconds, 1),
-                              analysis_seconds=None, phase='analyzing' if self.recognize else 'waiting',
-                              direction='unknown', description='',
-                              sequence=self.status()['sequence'] + 1,
-                              captured_count=self.status()['captured_count'] + 1)
+                    with self._lock:
+                        self._state.update(filename=path.name, captured_at=captured_at,
+                                           capture_seconds=round(capture_seconds, 1),
+                                           analysis_seconds=None,
+                                           phase='analyzing' if self.recognize else 'waiting',
+                                           direction='unknown', description='',
+                                           sequence=self._state['sequence'] + 1,
+                                           captured_count=self._state['captured_count'] + 1)
+                        self._history.append({'filename': path.name, 'captured_at': captured_at,
+                                              'capture_seconds': round(capture_seconds, 1),
+                                              'analysis_seconds': None, 'direction': 'unknown',
+                                              'description': '', 'error': None,
+                                              'state': 'analyzing' if self.recognize else 'complete'})
+                    self._save_history()
                     if self.recognize and not self._stop.is_set():
                         started = time.monotonic()
                         decision = analyze_demo_jpeg(path.read_bytes())
                         if not self._stop.is_set():
+                            analysis_seconds = round(time.monotonic() - started, 1)
                             self._set(direction=decision['direction'],
                                       description=decision['description'],
-                                      analysis_seconds=round(time.monotonic() - started, 1),
+                                      analysis_seconds=analysis_seconds,
                                       phase='waiting')
+                            self._update_last(path.name, direction=decision['direction'],
+                                              description=decision['description'],
+                                              analysis_seconds=analysis_seconds, state='complete')
                     errors = 0
                 except InterruptedError:
                     break
@@ -142,8 +183,18 @@ class DemoCapture:
                         errors += 1
                         self._set(phase='error', error=str(error), direction='unknown',
                                   description='')
+                        with self._lock:
+                            pending = (self._history[-1]['filename'] if self._history and
+                                       self._history[-1].get('state') == 'analyzing' else None)
+                        if pending:
+                            self._update_last(pending, state='error', error=str(error))
                 if self.status()['captured_count'] >= self.max_frames or errors >= 3:
                     break
                 self._stop.wait(max(self.pause_seconds, 15 if errors else 0))
         finally:
+            with self._lock:
+                pending = (self._history[-1]['filename'] if self._history and
+                           self._history[-1].get('state') == 'analyzing' else None)
+            if pending:
+                self._update_last(pending, state='interrupted')
             self._set(running=False, phase='idle')
