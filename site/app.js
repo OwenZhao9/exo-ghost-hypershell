@@ -424,21 +424,22 @@ async function startViewer() {
     scene.add(rim);
 
     const root = gltf.scene;
+    // Keep framing anchored to the source asset. Fitted cuffs must not
+    // rescale or recenter the whole person when their height changes.
+    const sourceBounds = new THREE.Box3().setFromObject(root);
+    const center = sourceBounds.getCenter(new THREE.Vector3());
+    const size = sourceBounds.getSize(new THREE.Vector3());
     taperSupportToCuff(root, "tripo_part_3", config.fit.leftCuff);
     taperSupportToCuff(root, "tripo_part_5", config.fit.rightCuff);
     const left = attachPart(root, config.left);
     const right = attachPart(root, config.right);
     fitWornParts(root, left, right, config);
-    const bounds = new THREE.Box3().setFromObject(root);
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = bounds.getSize(new THREE.Vector3());
     root.position.sub(center);
     const holder = new THREE.Group();
     holder.add(root);
     holder.scale.setScalar(2.5 / Math.max(size.x, size.y, size.z, 0.01));
-    const sphere = new THREE.Box3()
-      .setFromObject(holder)
-      .getBoundingSphere(new THREE.Sphere());
+    const sphere = sourceBounds.getBoundingSphere(new THREE.Sphere());
+    sphere.radius *= holder.scale.x;
     const human = createHuman(humanGltf, holder, center);
     human.root.visible = humanVisible;
     scene.add(holder);
