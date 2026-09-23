@@ -31,22 +31,47 @@ async function render() {
       const dispose = await module.mount(view, {api, config, device, ui});
       if (current !== revision) dispose?.(); else cleanup = dispose;
     } else {
-      ui.heading(root, '你好，继续走下去。', '记录每一次运动，看见属于自己的变化。');
+      const hero = ui.el('section', null, 'home-hero');
+      const intro = ui.el('div');
+      intro.append(ui.el('p', 'GHOST / MOVEMENT STUDIO', 'eyebrow'),
+        ui.el('h1', '从这里，开始下一步。'),
+        ui.el('p', '设备状态、运动模式和每次留下的记录，都在这里。', 'muted'));
+      const status = ui.el('div', null, 'home-status');
+      const statusMain = ui.el('div'), statusTitle = ui.el('strong'), statusDetail = ui.el('p');
+      statusMain.append(ui.el('span', '当前数据', 'home-status-label'), statusTitle, statusDetail);
+      status.append(statusMain, ui.el('p', config.control_enabled ? '运动操作需要真机就绪，并由你手动开始。' : '当前为只读查看。运动操作请使用控制台。', 'status-detail'));
+      hero.append(intro, status); root.append(hero);
+      const updateHomeStatus = () => {
+        statusTitle.textContent = device.fresh ? '实时数据已接收' : '等待设备数据';
+        const body = device.status?.body;
+        const source = body === 'real' ? '真机' : body === 'sim' ? '仿真' : '来源待确认';
+        const profile = device.status?.profile === 'table' ? ' · 桌面标定' : device.status?.profile === 'wearing' ? ' · 穿戴' : '';
+        statusDetail.textContent = device.fresh ? `数据来源：${source}${profile}` : '连接后显示当前设备数据。';
+      };
+      device.addEventListener('change', updateHomeStatus);
+      cleanup = () => device.removeEventListener('change', updateHomeStatus);
+      updateHomeStatus();
       const {sessions} = await api('/api/sessions');
       if (current !== revision) return;
       const personal = sessions.filter(s => s.eligible);
-      const grid = ui.el('div', null, 'grid stats');
+      const grid = ui.el('div', null, 'stat-strip');
       grid.append(ui.metric('穿戴运动记录', personal.length, '次'),
         ui.metric('累计记录时长', ui.number(personal.reduce((n, s) => n + s.metrics.duration_s, 0) / 60), '分钟'),
         ui.metric('最近一次', personal.length ? new Date(personal[0].started_at * 1000).toLocaleDateString('zh-CN') : '—'));
       root.append(grid);
-      if (!sessions.length) ui.empty(root, '从你的第一次记录开始', '连接外骨骼完成一次运动后，在行走档案中收录记录。');
-      const cards = ui.el('div', null, 'grid');
-      for (const f of config.features) {
+      const section = ui.el('div', null, 'section-head');
+      section.append(ui.el('h2', '选择一项任务'), ui.el('span', '运动 / 档案 / 偏好 / 成长'));
+      root.append(section);
+      const cards = ui.el('div', null, 'grid feature-grid');
+      config.features.forEach((f, i) => {
         const a = ui.el('a', null, 'card feature'); a.href = `#${f.id}`;
-        a.append(ui.el('h2', f.title), ui.el('p', f.description, 'muted'), ui.el('span', '打开 →', 'accent')); cards.append(a);
-      }
+        if (f.id === 'modes') a.classList.add('feature-primary');
+        const top = ui.el('div', null, 'feature-top');
+        top.append(ui.el('span', String(i + 1).padStart(2, '0'), 'feature-number'), ui.el('span', '↗', 'feature-arrow'));
+        a.append(top, ui.el('h2', f.title), ui.el('p', f.description, 'muted')); cards.append(a);
+      });
       root.append(cards);
+      if (!sessions.length) ui.empty(root, '还没有穿戴运动记录', '完成运动并收录记录后，活动统计会显示在上方。');
     }
   } catch (e) { if (current === revision) ui.empty(root, '暂时无法打开', e.message); }
 }

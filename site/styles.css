@@ -717,38 +717,84 @@ p {
   margin-top: 35px;
   background: #0d130e;
   border: 1px solid #2e3d2d;
-  padding: 20px;
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  overflow: hidden;
+}
+.dash-mini-rail {
   display: flex;
   flex-direction: column;
+  gap: 18px;
+  padding: 20px 10px;
+  border-right: 1px solid #2e3d2d;
+  background: #131b15;
+  color: #9fae9d;
+  font-size: 9px;
 }
-.dash-top,
-.dash-footer {
+.dash-mini-mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #d2f55a;
+  color: #d2f55a;
+  font-size: 16px;
+  font-weight: 800;
+}
+.dash-mini-main {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px;
+  min-width: 0;
+}
+.dash-top {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
   font-family: "DM Mono", monospace;
-  font-size: 10px;
+  font-size: 8px;
   letter-spacing: 0.1em;
   color: #71866d;
 }
-.dash-online {
-  color: #c1eb5e;
+.dash-mini-main strong {
+  margin-top: 54px;
+  color: #eff5e8;
+  font-size: clamp(23px, 2.5vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -0.07em;
 }
-.dash-bars {
+.dash-mini-main p {
+  max-width: 250px;
+  margin-top: 13px;
+  color: #a7b5a7;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.dash-mini-status {
   display: flex;
-  align-items: flex-end;
-  gap: 3.5%;
-  flex: 1;
-  padding: 30px 8px;
-  border-bottom: 1px solid #506046;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding: 12px;
+  border: 1px solid #475d42;
+  background: #1e3022;
+  color: #d2f55a;
+  font-size: 9px;
 }
-.dash-bars span {
-  flex: 1;
-  background: linear-gradient(0deg, #708d37, #ceef65);
-  min-height: 2px;
-  box-shadow: 0 0 14px #c6ed5340;
+.dash-mini-status span {
+  color: #9fae9d;
 }
-.dash-footer {
-  padding-top: 14px;
+.dash-mini-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+.dash-mini-links span {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #3c4d3b;
+  color: #d2f55a;
+  font-size: 9px;
 }
 .mini-graphic {
   height: 145px;
