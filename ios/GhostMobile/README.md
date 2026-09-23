@@ -25,4 +25,4 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 
 ## TestFlight 状态
 
-本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。尝试上传时 Xcode 在“获取 App 信息”阶段失败；当前账号查到的 App 记录为 0，尚未上传至 TestFlight。需先在 App Store Connect 建立与 `com.owenzhao.exoghost.mobile` 对应的 iOS App 记录，再重新上传。真机 iPhone 8 的系统版本、安装、配对、控制和失联保护仍须现场验证；编译和导出不等于已在 iPhone 8 运行。
+本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`），TestFlight 构建 `1.0 (1)` 于 2026-09-23 上传并处理完成。出口合规问题已根据 App 仅调用 Apple 系统加密能力的实现填写。手动分发的内部群组 `Ghost iPhone 内测` 已分配此构建，账户持有人已受邀；邀请仍需在 iPhone 的 TestFlight 中接受。真机 iPhone 8 的系统版本、安装、配对、控制和失联保护仍须现场验证。
