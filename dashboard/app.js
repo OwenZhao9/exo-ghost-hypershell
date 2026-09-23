@@ -186,12 +186,13 @@ let ws;
 function connect(){
   ws = new WebSocket(WS);
   ws.onopen = () => { $('conn').textContent='已连接'; $('dot').classList.add('on'); };
-  ws.onclose = () => { $('conn').textContent='断开，重连中…'; $('dot').classList.remove('on'); setState('OFFLINE'); setTimeout(connect, 1000); };
+  ws.onclose = () => { $('conn').textContent='断开，重连中…'; $('dot').classList.remove('on'); setState('OFFLINE'); T.length=0; V.length=0; setTimeout(connect, 1000); };
   ws.onerror = () => ws.close();
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
     if (m.k === 's'){
       if (paused) return;
+      if (T.length && m.t - T[T.length-1] > 0.3){ T.length=0; V.length=0; cursor=null; }
       T.push(m.t); V.push(m.v);
       while (T.length && T[0] < m.t - KEEP){ T.shift(); V.shift(); }
       while (EVENTS.length && EVENTS[0].t < m.t - KEEP) EVENTS.shift();
@@ -199,6 +200,10 @@ function connect(){
       $('vR').textContent = m.v[F.rdeg].toFixed(1)+'°';
       $('vT').textContent = `${m.v[F.tl]>=0?'+':''}${m.v[F.tl].toFixed(2)} / ${m.v[F.tr]>=0?'+':''}${m.v[F.tr].toFixed(2)}`;
     } else if (m.k === 'st'){
+      if (m.state === 'RECONN' && status?.state !== 'RECONN') {
+        T.length=0; V.length=0; cursor=null;
+        $('vL').textContent='—'; $('vR').textContent='—'; $('vT').textContent='—';
+      }
       status = m; setState(m.state);
       $('vP').textContent = {zero:'松劲', resist:'阻尼', assist:'助力', hold:'位置保持', torque:'恒定力矩'}[m.policy] || m.policy;
       $('vHz').textContent = m.hz.toFixed(0)+' Hz';
@@ -216,7 +221,7 @@ function connect(){
 }
 function setState(s){
   const el = $('state'); el.className = 'badge '+s;
-  el.textContent = {ARMED:'运行中', TRIPPED:'急停锁存', LEGS_OFF:'腿板掉线', RECONN:'重连中', OFFLINE:'未连接'}[s] || s;
+  el.textContent = {ARMED:'运行中', TRIPPED:'急停锁存', LEGS_OFF:'腿板掉线', RECONN:'重连中', QUIET:'安全等待', OFFLINE:'未连接'}[s] || s;
 }
 connect();
 const send = o => { if (ws && ws.readyState===1) ws.send(JSON.stringify(o)); };

@@ -43,7 +43,10 @@ def main():
     if a.op == "status":
         try:
             st = json.load(open(STATUS)); age = time.time() - st["t"]
-            print(f"({age:.0f}s 前) {st['state']} {st['policy']} gain={st['gain']} {st['hz']:.0f}Hz  L={st['ldeg']:.1f}° R={st['rdeg']:.1f}°  ω=({st['ldps']:.0f},{st['rdps']:.0f})  τ=({st['tau_l']:+.2f},{st['tau_r']:+.2f})  scale={st['scale']:.2f}  做功 {st['work_J']:+.1f} J  tripped={st['tripped']}  legs_offline={st['legs_offline']}")
+            def reading(key, fmt):
+                value = st.get(key)
+                return "—" if value is None else format(value, fmt)
+            print(f"({age:.0f}s 前) {st['state']} {st['policy']} gain={st['gain']} {st['hz']:.0f}Hz  L={reading('ldeg', '.1f')}° R={reading('rdeg', '.1f')}°  ω=({reading('ldps', '.0f')},{reading('rdps', '.0f')})  τ=({st['tau_l']:+.2f},{st['tau_r']:+.2f})  scale={st['scale']:.2f}  做功 {st['work_J']:+.1f} J  tripped={st['tripped']}  legs_offline={st['legs_offline']}")
         except Exception as e:
             print("没有状态文件（服务没在跑？）", e)
         return

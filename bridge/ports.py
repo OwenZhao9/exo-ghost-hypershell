@@ -25,13 +25,22 @@ PORT_GLOBS_LINUX = (
 PORT_GLOBS = PORT_GLOBS_DARWIN if sys.platform == "darwin" else PORT_GLOBS_LINUX
 
 
+def port_candidates(preferred: Optional[str] = None) -> list[str]:
+    """列出可用串口；旧端口仍在时优先试旧端口，换号后逐个验证协议。"""
+    found = []
+    if preferred and os.path.exists(preferred):
+        found.append(preferred)
+    for g in PORT_GLOBS:
+        for cand in sorted(glob.glob(g)):
+            port = os.path.realpath(cand) if ("by-id" in g or g == "/dev/exo") else cand
+            if port not in found:
+                found.append(port)
+    return found
+
+
 def find_port() -> Optional[str]:
     """macOS 用 cu. 不用 tty.（tty. 会等载波信号阻塞）；Linux 优先按 by-id 精确匹配。"""
-    for g in PORT_GLOBS:
-        cands = sorted(glob.glob(g))
-        if cands:
-            return os.path.realpath(cands[0]) if ("by-id" in g or g == "/dev/exo") else cands[0]
-    return None
+    return next(iter(port_candidates()), None)
 
 
 def permission_hint(port: str, err: Exception) -> Optional[str]:
