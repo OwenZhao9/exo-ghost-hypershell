@@ -206,6 +206,98 @@ def test_snapshot_is_json_safe():
     json.dumps(g.snapshot())
 
 
+def test_remote_choice_cannot_set_physical_gain(monkeypatch):
+    """Even a confident remote assist choice cannot create gain during stillness."""
+    g = fresh(backend="rules")
+    for s in frames(None):
+        g.feed(s)
+    confident_assist = Decider("rules").choice(
+        state_for("walk"), "策略？", OPTIONS, rules=policy_weights)
+    monkeypatch.setattr(g.decider, "choice", lambda *a, **kw: confident_assist)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.want == "assist"
+    assert d.gain == 0.0
+
+
+def test_existing_jev_decide_library_sends_typesafe_choice(monkeypatch):
+    """The exoskeleton uses the pinned library's real HTTP adapter, mocked at I/O."""
+    import jev_decide._backends.jev as jev
+
+    sent = {}
+
+    def fake_post(url, payload, *, headers, timeout_s):
+        sent.update(url=url, payload=payload, headers=headers, timeout_s=timeout_s)
+        return {"answers": {"decision": {
+            "choice": "assist", "probabilities": {"zero": 0.02, "resist": 0.03,
+                                                     "assist": 0.95}, "confidence": 0.95}}}
+
+    monkeypatch.setattr(jev, "post_json", fake_post)
+    g = fresh(backend="jev", api_key="test-key")
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.backend == "jev" and d.want == "assist" and d.confidence == 0.95
+    assert sent["url"] == "https://api.typesafe.ai/v1/systemone"
+    assert sent["payload"]["questions"]["decision"]["type"] == "choice"
+    assert sent["headers"]["Authorization"] == "Bearer test-key"
+
+
+def test_unsafe_state_forces_zero_without_remote_call(monkeypatch):
+    g = fresh(backend="jev", autopilot=True)
+    for s in frames("walk"):
+        g.feed(s)
+    monkeypatch.setattr(g.decider, "choice", lambda *a, **kw: pytest.fail("remote called"))
+    g._last_switch = 99.0  # hold must never suppress an emergency zero
+    d = g.tick(100.0, current_policy="assist", armed=False,
+               tripped=None, legs_offline=False)
+    assert d.applied == "zero" and d.gain == 0.0
+    assert d.autopilot and d.held_by == ""
+
+
+def test_stale_stream_forces_zero_without_remote_call(monkeypatch):
+    g = fresh(backend="jev", background=True, autopilot=True)
+    for s in frames("walk"):
+        g.feed(s)
+    monkeypatch.setattr(g.decider, "choice", lambda *a, **kw: pytest.fail("remote called"))
+    d = g.tick(100.0, current_policy="assist", armed=True,
+               tripped=None, legs_offline=False, sample_age_s=0.8)
+    assert d.applied == "zero" and d.gain == 0.0
+
+
+def test_background_request_does_not_block_and_discards_stale_answer(monkeypatch):
+    from threading import Event
+    from time import perf_counter
+
+    release = Event()
+    g = fresh(backend="jev", background=True, autopilot=True)
+    for s in frames("walk"):
+        g.feed(s)
+    answer = Decider("rules").choice(state_for("walk"), "策略？", OPTIONS,
+                                     rules=policy_weights)
+
+    def slow_choice(*args, **kwargs):
+        release.wait(1.0)
+        return answer
+
+    monkeypatch.setattr(g.decider, "choice", slow_choice)
+    started = perf_counter()
+    assert g.tick(100.0, current_policy="zero", armed=True,
+                  tripped=None, legs_offline=False, sample_age_s=0.0) is None
+    assert perf_counter() - started < 0.25
+    assert g.tick(101.0, current_policy="zero", armed=True,
+                  tripped=None, legs_offline=False, sample_age_s=0.0) is None
+    release.set()
+    try:
+        assert g._pending.result(timeout=1.0) == answer
+        assert g.tick(102.0, current_policy="zero", armed=True,
+                      tripped=None, legs_offline=False, sample_age_s=0.0) is None
+        assert g.n_applied == 0
+    finally:
+        g.close()
+
+
 def test_wearer_trajectory_is_deterministic_and_bounded():
     for name, spec in GAITS.items():
         a = angles(spec, 0.37)

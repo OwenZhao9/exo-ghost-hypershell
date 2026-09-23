@@ -48,6 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--min-confidence", type=float, default=0.55,
                     help="置信度门控阈值：低于它就保持原策略不动")
     ap.add_argument("--decide-period", type=float, default=2.0, help="每隔几秒决策一次")
+    ap.add_argument("--decide-backend", choices=["auto", "jev", "rules"], default="auto",
+                    help="直觉来源：auto 有 TypeSafe key 时优先 jEV，否则本地规则")
     ap.add_argument("--body", choices=["auto", "real", "sim"], default="auto",
                     help="用哪具身体：real=真外骨骼，sim=数字义体，auto=找不到真机就用义体")
     return ap
@@ -197,7 +199,8 @@ def main(argv: Optional[list[str]] = None) -> None:
             log(f"    依据：{d.why}", kind="decision", decision=d.to_dict())
 
         decider = GhostDecider(period_s=a.decide_period, min_confidence=a.min_confidence,
-                               autopilot=a.autopilot, on_decision=on_decision)
+                               autopilot=a.autopilot, backend=a.decide_backend,
+                               background=True, on_decision=on_decision)
 
     # 启动时忽略上次遗留的命令文件，避免重放旧策略
     try:
@@ -248,12 +251,14 @@ def main(argv: Optional[list[str]] = None) -> None:
                 session.pulse_until = now + KEEPALIVE_PULSE_S
                 log(f"keepalive 脉冲 {KEEPALIVE_PULSE_NM} Nm × {KEEPALIVE_PULSE_S} s（左腿）")
 
-            # 直觉层：每隔 --decide-period 做一次决策（会阻塞，所以只在主循环里做）
-            if decider is not None and decider.due(now):
+            # 网络决策在后台线程；此处只读取已完成的结果，命令循环不等待 API。
+            if decider is not None:
                 try:
                     d = decider.tick(now, current_policy=session.policy.name,
                                      armed=session.armed, tripped=bridge.tripped,
-                                     legs_offline=bridge.legs_offline)
+                                     legs_offline=bridge.legs_offline,
+                                     sample_age_s=None if bridge.latest is None else now - bridge.latest.host_t,
+                                     reconnecting=bridge._reconnecting)
                 except Exception as e:
                     d = None
                     log(f"决策层出错（已忽略，不影响控制）：{e}", "err")
@@ -322,6 +327,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         print("DISABLE ->", bridge.disable(), flush=True)
         bridge.close()
         if decider is not None:
+            decider.close()
             print(f"直觉层：决策 {decider.n_decisions} 次，其中 {decider.n_held} 次因置信度不足"
                   f"保持原状，{decider.n_applied} 次自动下发", flush=True)
         if memory is not None:               # 把这次会话沉淀下去再走
