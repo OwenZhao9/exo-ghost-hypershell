@@ -4,6 +4,12 @@
 
 ## 2026-09-23
 
+### 白膜人体模型与穿戴朝向
+
+- 以获准使用的 Hypershell 官方穿戴照片为人体比例与展示参考，制作正面无五官白膜参考图；Tripo image-to-model v3.1 生成连续人体网格，再用 Tripo biped/Mixamo 自动绑骨。生成与绑骨任务、消耗积分、参考图和来源见 `model-sources/README.md`，密钥没有写入仓库。
+- `site/app.js` 将展示页从 Cesium 方块示例人体切换到新绑骨模型，去除贴图并渲染为半透明白膜。人物绕竖轴转 180° 修正与外骨骼的前后穿戴方向；相应交换左右髋骨映射，按髋骨位置对齐现有外骨骼，保留显隐切换与双髋实测角度联动。网页只读设备数据，不修改真机控制链路。旧示例人体文件已移除。
+- 更新 `site/` 文案、模型来源说明及 `docs/FEATURES.md`。`node --test tests/site-human-model.test.mjs tests/site-live.test.mjs` 5 项通过，`node --check site/app.js` 与 `git diff --check` 通过；本地 Chrome 桌面和 390px 移动视口确认模型无五官、背部设备位置及页面显示，桌面实测记录可驱动左髋姿态。新模型是视觉近似，不提供膝、脚或全身动作测量；实机转向与穿戴步态仍需现场对照。
+
 ### 腰部转身与双侧摆腿跟随
 
 - `site/live.js` 接收腰部陀螺仪数据和帧到达时间；`site/motion.js` 计算跨 ±180° 的短时 yaw 差，只在陀螺仪超过静止噪声门槛时更新相对朝向，长时间断流不补转。

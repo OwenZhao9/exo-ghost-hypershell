@@ -72,16 +72,38 @@ function poseJoint(spec, radians) {
 
 function createHuman(gltf, holder, center) {
   const root = gltf.scene;
-  root.scale.setScalar(1.8);
-  root.rotation.y = Math.PI / 2;
-  root.position.set(-center.x - 0.03, 0.18 - center.y - 0.686 * 1.8, -center.z);
+  // GLTFLoader removes ':' from Mixamo bone names for animation bindings.
+  const hips = root.getObjectByName("mixamorigHips");
+  const leftHip = root.getObjectByName("mixamorigLeftUpLeg");
+  const rightHip = root.getObjectByName("mixamorigRightUpLeg");
+  if (!hips || !leftHip || !rightHip) throw new Error("人体模型缺少髋部骨骼");
+  root.scale.setScalar(2.4);
+  // The generated character faces the opposite way from the worn exoskeleton.
+  root.rotation.y = Math.PI;
+  root.updateMatrixWorld(true);
+  const hipPosition = hips.getWorldPosition(new THREE.Vector3());
+  root.position.set(
+    -center.x - 0.03 - hipPosition.x,
+    0.18 - center.y - hipPosition.y,
+    -center.z - hipPosition.z,
+  );
   root.traverse((object) => {
     if (!object.isMesh) return;
     const makeGlass = (material) => {
       const glass = material.clone();
-      glass.color.set(0xd3ecde);
+      // Keep the smooth silhouette and rig, but hide facial and clothing detail.
+      glass.map = null;
+      glass.normalMap = null;
+      glass.roughnessMap = null;
+      glass.metalnessMap = null;
+      glass.emissiveMap = null;
+      glass.aoMap = null;
+      glass.vertexColors = false;
+      glass.color.set(0xf5f8f5);
+      glass.metalness = 0;
+      glass.roughness = 0.92;
       glass.transparent = true;
-      glass.opacity = 0.27;
+      glass.opacity = 0.58;
       glass.depthWrite = false;
       glass.side = THREE.DoubleSide;
       return glass;
@@ -95,8 +117,9 @@ function createHuman(gltf, holder, center) {
   root.updateMatrixWorld(true);
   return {
     root,
-    left: makeJointPose(root.getObjectByName("leg_joint_L_1")),
-    right: makeJointPose(root.getObjectByName("leg_joint_R_1")),
+    // A half turn also exchanges the character's screen-space left and right.
+    left: makeJointPose(rightHip),
+    right: makeJointPose(leftHip),
   };
 }
 
@@ -239,7 +262,7 @@ async function startViewer() {
     const loader = new GLTFLoader();
     const [gltf, humanGltf] = await Promise.all([
       loader.loadAsync("assets/exoskeleton.glb"),
-      loader.loadAsync("assets/human-rigged.glb"),
+      loader.loadAsync("assets/human-tripo-rigged.glb"),
     ]);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
@@ -273,7 +296,7 @@ async function startViewer() {
     human.root.visible = humanVisible;
     scene.add(holder);
     const distance =
-      (sphere.radius / Math.sin((camera.fov * Math.PI) / 360)) * 3.1;
+      (sphere.radius / Math.sin((camera.fov * Math.PI) / 360)) * 1.95;
     camera.position.set(distance * 0.75, distance * 0.28, distance * 0.65);
     camera.lookAt(0, 0.2, 0);
     const controls = new OrbitControls(camera, renderer.domElement);

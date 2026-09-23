@@ -32,7 +32,7 @@ python3 -m http.server 8788 --bind 127.0.0.1 --directory site
 
 - `assets/hypershell-*.webp`：依据用户确认获官方许可的 Hypershell X Max S 图片优化生成；原图 URL 和许可说明见 `feat/auto-reconnect-GPT` 分支的 `dashboard/assets/README.md`。
 - `assets/exoskeleton.glb`：同分支 Tripo 生成的视觉模型，不是工程 CAD 或安全模型。
-- `assets/human-rigged.glb`：Cesium Rigged Figure，CC BY 4.0；在网页中调整透明度、比例和髋部姿态。详见 `assets/HUMAN-LICENSE.md`。这是简化人体外形，可替换成用户提供的写实模型。
+- `assets/human-tripo-rigged.glb`：Tripo 生成并自动绑骨的白膜人体，参考已确认获准使用的官网穿戴照片的比例，但没有真实面孔，也不是官方模型。网页去除贴图、调整透明度与尺寸，修正前后穿戴朝向及左右髋对应，再以实测双髋角度驱动腿部；详细来源、生成任务及限制见 `assets/HUMAN-LICENSE.md` 与 `../model-sources/README.md`。
 - `data/twin-replay.json`：真实设备桌面标定记录的抽样回放，并非当前在线数据。
 - `vendor/`：Three.js 与加载器本地文件，许可证见 `vendor/THREE-LICENSE`。
 - 不把 `data/` 中的私人会话记录、密钥、实时控制地址或操作命令复制到网页。
