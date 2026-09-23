@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { connectTelemetry } from "./live.js";
 import { modeReadiness, modeCommand } from "./control.js";
-import { GaitPatternDetector, KneeFollower, YawFollower, forwardHipDegrees, kneeFlexRadians } from "./motion.js";
+import { GaitPatternDetector, YawFollower } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
 const loadButton = document.getElementById("load-model");
@@ -48,8 +48,6 @@ let turnEnabled = true;
 let confirmedProfile = null;
 const yawFollower = new YawFollower();
 const gaitDetector = new GaitPatternDetector();
-const kneeFollower = new KneeFollower();
-let kneeSource = null;
 
 function attachPart(root, spec) {
   if (!spec || !Array.isArray(spec.names) || !Array.isArray(spec.pivot))
@@ -148,10 +146,8 @@ function createHuman(gltf, holder, center) {
   const hips = root.getObjectByName("mixamorigHips");
   const leftHip = root.getObjectByName("mixamorigLeftUpLeg");
   const rightHip = root.getObjectByName("mixamorigRightUpLeg");
-  const leftKnee = root.getObjectByName("mixamorigLeftLeg");
-  const rightKnee = root.getObjectByName("mixamorigRightLeg");
-  if (!hips || !leftHip || !rightHip || !leftKnee || !rightKnee)
-    throw new Error("人体模型缺少髋部或膝部骨骼");
+  if (!hips || !leftHip || !rightHip)
+    throw new Error("人体模型缺少髋部骨骼");
   root.scale.setScalar(2.4);
   // The generated character faces the opposite way from the worn exoskeleton.
   root.rotation.y = Math.PI;
@@ -195,8 +191,6 @@ function createHuman(gltf, holder, center) {
     // Preserve the mannequin's anatomical sides after the half turn.
     left: makeJointPose(leftHip),
     right: makeJointPose(rightHip),
-    leftKnee: makeJointPose(leftKnee),
-    rightKnee: makeJointPose(rightKnee),
   };
 }
 
@@ -221,10 +215,6 @@ function showFrame(frame, source) {
   viewer.holder.rotation.y = source === "live" && turnEnabled
     ? yawFollower.angle * Math.PI / 180 : 0;
   if (viewer.left && viewer.right) {
-    if (kneeSource !== source) {
-      kneeFollower.clear();
-      kneeSource = source;
-    }
     const axis = viewer.config.axis || "z";
     const leftRotation =
       (((left - neutral[source].left) * Math.PI) / 180) * viewer.config.sign.left;
@@ -234,19 +224,6 @@ function showFrame(frame, source) {
     viewer.right.rotation[axis] = rightRotation;
     poseJoint(viewer.human?.left, leftRotation);
     poseJoint(viewer.human?.right, rightRotation);
-    const knees = kneeFollower.update({
-      leftHipDeg: forwardHipDegrees(leftRotation),
-      rightHipDeg: forwardHipDegrees(rightRotation),
-      leftSpeedDps: -frame.leftSpeed * viewer.config.sign.left,
-      rightSpeedDps: -frame.rightSpeed * viewer.config.sign.right,
-      at: performance.now(),
-    });
-    // The device has no knee sensor. Flex only the mannequin's lower legs;
-    // the exoskeleton cuffs remain attached to the thighs above the knees.
-    // After the mannequin's half turn, positive world-Z bends each shin
-    // behind the knee. Negative rotation folded the shin toward the toes.
-    poseJoint(viewer.human?.leftKnee, kneeFlexRadians(knees.left));
-    poseJoint(viewer.human?.rightKnee, kneeFlexRadians(knees.right));
   }
 }
 

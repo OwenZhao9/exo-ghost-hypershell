@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { controlState, liveState, parseFrame } from "../site/live.js";
 import { MODES, modeCommand, modeReadiness } from "../site/control.js";
-import { GaitPatternDetector, KneeFollower, forwardHipDegrees, kneeFlexTarget, YawFollower } from "../site/motion.js";
+import { GaitPatternDetector, YawFollower } from "../site/motion.js";
 
 const sensor = { k: "s", v: [-12, 23, 1.5, -2.5, 0.1, -0.2, 0, 10, 11, 12] };
 
@@ -83,46 +82,4 @@ test("bilateral alternating hip motion is detected without claiming one-leg move
   gait.clear();
   assert.equal(gait.update({ receivedAt: 0, left: -30, right: 35 }), false);
   assert.equal(gait.update({ receivedAt: 1000, left: -18, right: 45 }), false);
-});
-
-test("visual knee flex bends on forward lift, eases on lowering, and never invents measured motion", () => {
-  const config = JSON.parse(readFileSync(new URL("../site/data/twin-config.json", import.meta.url)));
-  const rightModelHip = (12.9 - config.upright.right) * config.sign.right * Math.PI / 180;
-  assert.ok(forwardHipDegrees(rightModelHip) > 20);
-  assert.ok(kneeFlexTarget(forwardHipDegrees(rightModelHip), 0) > 50);
-  assert.equal(kneeFlexTarget(0, 0), 0);
-  assert.equal(kneeFlexTarget(-20, -80), 0);
-  assert.ok(kneeFlexTarget(25, 60) > kneeFlexTarget(25, -60));
-  assert.ok(kneeFlexTarget(100, 300) > 100);
-  assert.ok(kneeFlexTarget(100, 300) <= 135);
-  const follower = new KneeFollower();
-  let pose = follower.update({ leftHipDeg: 25, rightHipDeg: 0, leftSpeedDps: 60, rightSpeedDps: 0, at: 0 });
-  assert.ok(pose.left > 0 && pose.left < 35);
-  assert.equal(pose.right, 0);
-  for (let at = 20; at <= 300; at += 20)
-    pose = follower.update({ leftHipDeg: 25, rightHipDeg: 0, leftSpeedDps: 60, rightSpeedDps: 0, at });
-  assert.ok(pose.left > 25);
-  follower.clear();
-  assert.deepEqual(follower.update({ leftHipDeg: 0, rightHipDeg: 0, leftSpeedDps: 0, rightSpeedDps: 0, at: 320 }), { left: 0, right: 0 });
-});
-
-test("recorded forward right-leg swing produces visible estimated knee flex", () => {
-  const config = JSON.parse(readFileSync(new URL("../site/data/twin-config.json", import.meta.url)));
-  const recording = JSON.parse(readFileSync(new URL("../site/data/twin-replay.json", import.meta.url)));
-  const start = recording.frames[0];
-  const follower = new KneeFollower();
-  let strongest = 0;
-  for (const row of recording.frames) {
-    const leftHip = (row[4] - start[4]) * config.sign.left * Math.PI / 180;
-    const rightHip = (row[5] - start[5]) * config.sign.right * Math.PI / 180;
-    const knee = follower.update({
-      leftHipDeg: forwardHipDegrees(leftHip),
-      rightHipDeg: forwardHipDegrees(rightHip),
-      leftSpeedDps: -row[6] * config.sign.left,
-      rightSpeedDps: -row[7] * config.sign.right,
-      at: row[0] * 1000,
-    });
-    strongest = Math.max(strongest, knee.right);
-  }
-  assert.ok(strongest > 30, `right knee reached only ${strongest.toFixed(1)}°`);
 });

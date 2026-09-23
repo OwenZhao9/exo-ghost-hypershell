@@ -38,53 +38,6 @@ export class YawFollower {
   }
 }
 
-// The device measures hip motion only. Give the mannequin a restrained,
-// estimated swing-phase knee bend; never present it as a measured knee angle.
-// The half-turned mannequin faces -X: negative world-Z hip rotation is
-// forward lift, while positive world-Z knee rotation bends the shin backward.
-export function forwardHipDegrees(modelHipRadians) {
-  return -modelHipRadians * 180 / Math.PI;
-}
-
-export function kneeFlexTarget(hipDeg, speedDps) {
-  if (!Number.isFinite(hipDeg) || !Number.isFinite(speedDps)) return 0;
-  const forward = Math.max(0, hipDeg - 1);
-  if (!forward) return 0;
-  const lifting = Math.max(0, Math.min(speedDps, 250));
-  const lowering = Math.max(0, Math.min(-speedDps, 250));
-  // At a large hip lift, a fixed 65° knee cap still leaves the shin pointing
-  // toward the toes in world space. Keep the estimated shin behind the knee.
-  const minimum = forward + Math.min(5, forward * 0.25);
-  return Math.min(135, Math.max(minimum,
-    3 * forward + 0.05 * lifting - 0.12 * lowering));
-}
-
-// In the shipped, half-turned mannequin, positive world-Z rotation carries
-// the shin behind the knee. Keep this sign tied to the model geometry.
-export function kneeFlexRadians(flexDeg) {
-  return flexDeg * Math.PI / 180;
-}
-
-export class KneeFollower {
-  constructor() { this.clear(); }
-
-  clear() {
-    this.left = 0;
-    this.right = 0;
-    this.lastAt = null;
-  }
-
-  update({ leftHipDeg, rightHipDeg, leftSpeedDps, rightSpeedDps, at }) {
-    if (!Number.isFinite(at)) return { left: this.left, right: this.right };
-    const elapsed = this.lastAt === null ? 0.016 : Math.max(0, Math.min((at - this.lastAt) / 1000, 0.1));
-    const blend = 1 - Math.exp(-elapsed / 0.12);
-    this.left += blend * (kneeFlexTarget(leftHipDeg, leftSpeedDps) - this.left);
-    this.right += blend * (kneeFlexTarget(rightHipDeg, rightSpeedDps) - this.right);
-    this.lastAt = at;
-    return { left: this.left, right: this.right };
-  }
-}
-
 // Raw left/right angles have mirrored hardware signs: alternating physical
 // legs produce broadly in-phase traces. This detects the pattern, not steps,
 // foot contact, distance, or proof that a person is wearing the device.
