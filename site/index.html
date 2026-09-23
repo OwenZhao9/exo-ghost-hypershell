@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0c0f0d" />
+    <meta
+      name="description"
+      content="Ghost × Hypershell X Max S：为真实外骨骼打造有反射、有判断、有记忆的行动系统。"
+    />
+    <meta property="og:title" content="Ghost / 外骨骼行动系统" />
+    <meta
+      property="og:description"
+      content="让外骨骼拥有反射、判断与记忆。EvoTavern 原生 Agent 赛道项目。"
+    />
+    <meta
+      property="og:image"
+      content="https://exo-ghost.pages.dev/assets/hypershell-front.webp"
+    />
+    <title>Ghost / 外骨骼行动系统</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" as="image" href="assets/hypershell-front.webp" />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.js",
+          "three/addons/": "./vendor/addons/"
+        }
+      }
+    </script>
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="wordmark" href="#top" aria-label="Ghost 首页"
+        ><span class="wordmark-mark">G<span>•</span></span
+        ><span>GHOST<span class="wordmark-light"> / EXO</span></span></a
+      >
+      <nav aria-label="页面导航">
+        <a href="#twin">3D 外骨骼</a><a href="#system">行动系统</a
+        ><a href="#product">产品功能</a><a href="#open">开放项目</a>
+      </nav>
+      <a
+        class="header-cta"
+        href="https://github.com/OwenZhao9/exo-ghost-hypershell"
+        target="_blank"
+        rel="noopener noreferrer"
+        >查看代码 <span aria-hidden="true">↗</span></a
+      >
+    </header>
+
+    <main id="top">
+      <section class="hero section-shell">
+        <div class="hero-copy">
+          <div class="eyebrow">
+            <span class="signal-dot"></span> EVOTAVERN SHENZHEN · 原生 AGENT
+            赛道
+          </div>
+          <h1>
+            让外骨骼<br />拥有<span
+              >自己的<br class="mobile-break" />行动系统。</span
+            >
+          </h1>
+          <p class="hero-lede">
+            从感知身体，到决定动作，再到记住每一次真实世界的反馈。Ghost 为
+            Hypershell X Max S 构建一套可观察、可解释、可接管的智能控制系统。
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#twin"
+              >探索 3D 外骨骼 <span aria-hidden="true">↘</span></a
+            ><a class="button button-ghost" href="#system"
+              >了解系统 <span aria-hidden="true">↗</span></a
+            >
+          </div>
+          <div class="hero-facts">
+            <div>
+              <strong>180<span>Hz</span></strong
+              ><small>实测传感器数据流</small>
+            </div>
+            <div><strong>03</strong><small>协同工作的 Agent 层</small></div>
+            <div><strong>04</strong><small>独立开放的能力模块</small></div>
+          </div>
+        </div>
+        <div
+          class="hero-stage"
+          aria-label="Hypershell X Max S 外骨骼官方产品图"
+        >
+          <div class="hero-orbit orbit-a"></div>
+          <div class="hero-orbit orbit-b"></div>
+          <div class="hero-halo"></div>
+          <img
+            src="assets/hypershell-front.webp"
+            alt="Hypershell X Max S 外骨骼正面"
+            width="1400"
+            height="1400"
+          />
+          <div class="hero-stage-label">
+            <span class="label-line"></span> HYPERSHELL X MAX S
+            <span class="label-number">01 / 03</span>
+          </div>
+          <div class="hero-coordinate">22° 32′ N<br />114° 03′ E</div>
+        </div>
+        <div class="hero-scroll">SCROLL TO EXPLORE <span>↓</span></div>
+      </section>
+
+      <section class="intro-band">
+        <div class="section-shell intro-inner">
+          <span class="mono">01 / THE IDEA</span>
+          <p>
+            真正的智能，不止是给出一个动作。<br /><em
+              >它知道什么时候该行动，什么时候该停下。</em
+            >
+          </p>
+          <span class="asterisk" aria-hidden="true">✳</span>
+        </div>
+      </section>
+
+      <section class="twin-section section-shell" id="twin">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">02 / DIGITAL TWIN</span>
+            <h2>从真实身体，<br /><span>进入数字空间。</span></h2>
+          </div>
+          <p>
+            转动模型，观察外骨骼的结构。播放桌面实测记录，查看双髋角度如何驱动
+            3D 姿态。
+          </p>
+        </div>
+        <div class="twin-frame">
+          <div class="twin-topline">
+            <span><i class="live-light"></i> X MAX S / 3D VIEW</span
+            ><span>DRAG TO ROTATE · SCROLL TO ZOOM</span>
+          </div>
+          <div class="twin-viewport" id="twin-viewport">
+            <img
+              id="twin-poster"
+              src="assets/model-preview.png"
+              alt="外骨骼 3D 模型预览"
+              width="488"
+              height="488"
+            /><button class="load-model" id="load-model" type="button">
+              启动 3D 视图 <span>↗</span>
+            </button>
+            <p class="twin-error" id="twin-error" role="status" hidden></p>
+          </div>
+          <div class="twin-bottomline">
+            <div>
+              <span class="small-label">数据来源</span
+              ><strong>历史桌面实测记录</strong>
+            </div>
+            <div>
+              <span class="small-label">左髋角度</span
+              ><strong id="left-angle">—</strong>
+            </div>
+            <div>
+              <span class="small-label">右髋角度</span
+              ><strong id="right-angle">—</strong>
+            </div>
+            <button id="replay-toggle" type="button" disabled>
+              播放记录 <span>▶</span>
+            </button>
+          </div>
+        </div>
+        <div class="twin-caption">
+          <span>01</span>
+          <p>
+            3D 外形依据获准使用的 Hypershell
+            官方产品图制作。历史数据来自真实设备的桌面标定记录；模型姿态为可视化演示，不用于设备运动控制。
+          </p>
+        </div>
+      </section>
+
+      <section class="system-section" id="system">
+        <div class="section-shell">
+          <div class="section-heading light">
+            <div>
+              <span class="section-kicker">03 / THE SYSTEM</span>
+              <h2>三层智能。<br /><span>一种行动。</span></h2>
+            </div>
+            <p>
+              让不同速度的判断，各司其职。从毫秒级保护，到策略选择，再到经验积累。
+            </p>
+          </div>
+          <div class="layer-grid">
+            <article class="layer-card">
+              <div class="layer-top">
+                <span>01 / REFLEX</span><span class="layer-icon">↯</span>
+              </div>
+              <h3>反射</h3>
+              <p class="en-title">FLY-REFLEX</p>
+              <p>
+                每一帧都在检查运动边界。异常出现时，由确定性规则立即减弱输出或急停。
+              </p>
+              <div class="layer-foot">
+                <span>180 Hz</span><span>安全边界</span>
+              </div>
+            </article>
+            <article class="layer-card">
+              <div class="layer-top">
+                <span>02 / DECISION</span><span class="layer-icon">◇</span>
+              </div>
+              <h3>直觉</h3>
+              <p class="en-title">JEV-DECIDE</p>
+              <p>
+                观察一段运动窗口，判断当前适合的策略；信心不够时，保持现状。
+              </p>
+              <div class="layer-foot">
+                <span>2 s</span><span>置信度门控</span>
+              </div>
+            </article>
+            <article class="layer-card">
+              <div class="layer-top">
+                <span>03 / MEMORY</span><span class="layer-icon">◎</span>
+              </div>
+              <h3>经验</h3>
+              <p class="en-title">EVOMAP-GENES</p>
+              <p>
+                遇到问题时检索验证过的处置经验，让每一次排查都能成为下一次的线索。
+              </p>
+              <div class="layer-foot">
+                <span>按需</span><span>可复用经验</span>
+              </div>
+            </article>
+          </div>
+          <div class="sim-line">
+            <div class="sim-mark">S<span>2</span>R</div>
+            <div>
+              <span class="mono">SIM TO REAL</span>
+              <h3>让真实世界的经验，回到开发中。</h3>
+              <p>
+                从实测记录辨识执行器参数，在没有设备时复现控制链路与故障场景，并在接入真机时保留清晰的数据来源。
+              </p>
+            </div>
+            <a
+              href="https://github.com/OwenZhao9/sim2real-actuator"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="查看 sim2real-actuator 项目"
+              >↗</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section class="product-section section-shell" id="product">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">04 / PRODUCT EXPERIENCE</span>
+            <h2>从控制，<br /><span>走向日常使用。</span></h2>
+          </div>
+          <p>
+            在本机产品工作区里，把设备监看、运动模式和个人记录连成完整体验。
+          </p>
+        </div>
+        <div class="product-grid">
+          <article class="product-card product-large">
+            <div class="product-number">01 / LIVE CONTROL</div>
+            <div class="product-graphic dashboard-graphic" aria-hidden="true">
+              <div class="dash-top">
+                <span>GHOST / CONTROL</span
+                ><span class="dash-online">● DEVICE</span>
+              </div>
+              <div class="dash-bars">
+                <span style="height: 32%"></span
+                ><span style="height: 44%"></span
+                ><span style="height: 39%"></span
+                ><span style="height: 58%"></span
+                ><span style="height: 62%"></span
+                ><span style="height: 50%"></span
+                ><span style="height: 75%"></span
+                ><span style="height: 72%"></span
+                ><span style="height: 88%"></span
+                ><span style="height: 73%"></span
+                ><span style="height: 93%"></span
+                ><span style="height: 78%"></span>
+              </div>
+              <div class="dash-footer">
+                <span>LEFT HIP / RIGHT HIP</span><span>180 Hz</span>
+              </div>
+            </div>
+            <h3>实时连接与安全控制</h3>
+            <p>
+              串口自动发现与重连；设备就绪后恢复数据展示。助力、阻尼与保持策略始终经过斜坡、限幅和急停保护。
+            </p>
+          </article>
+          <article class="product-card">
+            <div class="product-number">02 / MOVEMENT</div>
+            <div class="mini-graphic">
+              <span class="mode-symbol">↗</span>
+              <div class="mode-tracks"><i></i><i></i><i></i></div>
+            </div>
+            <h3>运动模式</h3>
+            <p>查看设备的实时角度与指令力矩。助力、锻炼预设由你手动选择，设备就绪后才可开始。</p>
+          </article>
+          <article class="product-card">
+            <div class="product-number">03 / RECORDS</div>
+            <div class="mini-graphic records-graphic">
+              <span>左右 · 同行</span>
+              <div class="record-trace">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+            <h3>行走档案</h3>
+            <p>
+              收录设备记录，回看有效活动时间、双侧幅度与指令做功估计。桌面调试与穿戴运动分别标识，重复记录不会重复累积。
+            </p>
+          </article>
+          <article class="product-card">
+            <div class="product-number">04 / MEMORY</div>
+            <div class="mini-graphic memory-graphic">
+              <span>USER / PROFILE</span><strong>01</strong><small>↗</small>
+            </div>
+            <h3>个人记忆</h3>
+            <p>把偏好、使用感受和每次参数调整保存在本机。历史版本随时可查，个人档案可以导出，保存参数不会自动施力。</p>
+          </article>
+          <article class="product-card">
+            <div class="product-number">05 / GROWTH</div>
+            <div class="mini-graphic badge-graphic">
+              <span>✳</span><span>✧</span><span>✳</span><span>✧</span>
+            </div>
+            <h3>成长徽章</h3>
+            <p>
+              从第一步、三日同行，到一小时积累、左右同行。四枚徽章只依据完整真实穿戴活动计算，桌面、仿真与静止记录不计进度。
+            </p>
+          </article>
+        </div>
+        <div class="product-actions">
+          <p class="product-note">
+            产品工作区在本机运行，默认只读查看。运动控制需在本机另行启用；公开页面不访问你的设备或私人档案。
+          </p>
+          <a class="button button-ghost" href="https://github.com/OwenZhao9/exo-ghost-hypershell/tree/integration/product-GPT" target="_blank" rel="noopener noreferrer">
+            查看产品代码 <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="hardware-section">
+        <div class="section-shell hardware-inner">
+          <div class="hardware-copy">
+            <span class="section-kicker">05 / BUILT FOR THE REAL WORLD</span>
+            <h2>真正的世界，<br /><span>不会按脚本运行。</span></h2>
+            <p>
+              串口会中断，传感器会失联，判断也可能不确定。因此系统保留设备状态、指令来源与安全边界，让每次行动都有迹可循。
+            </p>
+            <div class="hardware-tags">
+              <span>自动重连</span><span>来源识别</span><span>安全急停</span
+              ><span>会话交付单</span>
+            </div>
+          </div>
+          <div class="hardware-photo">
+            <img
+              src="assets/hypershell-side.webp"
+              alt="Hypershell X Max S 外骨骼侧面"
+              loading="lazy"
+              width="1400"
+              height="1400"
+            /><span>HYPERSHELL X MAX S / SIDE VIEW</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="open-section section-shell" id="open">
+        <span class="section-kicker">06 / OPEN PROJECT</span>
+        <div class="open-inner">
+          <div>
+            <h2>把能力拆开，<br /><span>让想法继续生长。</span></h2>
+            <p>
+              四个独立开源模块与外骨骼主项目共同组成
+              Ghost。查看代码、复现实验，或沿着自己的方向继续构建。
+            </p>
+          </div>
+          <div class="repo-list">
+            <a
+              href="https://github.com/OwenZhao9/exo-ghost-hypershell"
+              target="_blank"
+              rel="noopener noreferrer"
+              ><span>主项目 / EXO-GHOST</span><b>↗</b></a
+            ><a
+              href="https://github.com/OwenZhao9/fly-reflex"
+              target="_blank"
+              rel="noopener noreferrer"
+              ><span>FLY-REFLEX</span><b>↗</b></a
+            ><a
+              href="https://github.com/OwenZhao9/jev-decide"
+              target="_blank"
+              rel="noopener noreferrer"
+              ><span>JEV-DECIDE</span><b>↗</b></a
+            ><a
+              href="https://github.com/OwenZhao9/evomap-genes"
+              target="_blank"
+              rel="noopener noreferrer"
+              ><span>EVOMAP-GENES</span><b>↗</b></a
+            ><a
+              href="https://github.com/OwenZhao9/sim2real-actuator"
+              target="_blank"
+              rel="noopener noreferrer"
+              ><span>SIM2REAL-ACTUATOR</span><b>↗</b></a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div class="section-shell footer-inner">
+        <div class="footer-brand">GHOST<span> / EXO</span></div>
+        <p>
+          EvoTavern 深圳站 · 原生 Agent 赛道<br />设备图像经用户确认许可使用；外骨骼设备为
+          Hypershell X Max S。
+        </p>
+        <a href="#top">回到顶部 ↑</a>
+      </div>
+    </footer>
+  </body>
+</html>

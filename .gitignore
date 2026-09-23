@@ -21,6 +21,6 @@ data/sim-runtime/
 CLAUDE.md
 CLAUDE.local.md
 .claude/
-AGENTS.md
 
 .DS_Store
+.wrangler/
