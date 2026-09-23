@@ -49,9 +49,14 @@ export function forwardHipDegrees(modelHipRadians) {
 export function kneeFlexTarget(hipDeg, speedDps) {
   if (!Number.isFinite(hipDeg) || !Number.isFinite(speedDps)) return 0;
   const forward = Math.max(0, hipDeg - 1);
+  if (!forward) return 0;
   const lifting = Math.max(0, Math.min(speedDps, 250));
   const lowering = Math.max(0, Math.min(-speedDps, 250));
-  return Math.max(0, Math.min(65, 3 * forward + 0.05 * lifting - 0.12 * lowering));
+  // At a large hip lift, a fixed 65° knee cap still leaves the shin pointing
+  // toward the toes in world space. Keep the estimated shin behind the knee.
+  const minimum = forward + Math.min(5, forward * 0.25);
+  return Math.min(135, Math.max(minimum,
+    3 * forward + 0.05 * lifting - 0.12 * lowering));
 }
 
 // In the shipped, half-turned mannequin, positive world-Z rotation carries

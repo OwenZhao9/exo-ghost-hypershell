@@ -502,7 +502,6 @@ humanButton.addEventListener("click", () => {
 });
 alignButton.addEventListener("click", () => {
   if (!viewer || !live.frame || mode !== "live") return;
-  neutral.live = { ...viewer.config.upright };
   yawFollower.align(live.frame.yaw, live.frame.receivedAt);
   showFrame(live.frame, "live");
 });

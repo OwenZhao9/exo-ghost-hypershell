@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { Group, Object3D, PropertyBinding, Vector3 } from "../site/vendor/three.module.js";
-import { forwardHipDegrees, kneeFlexRadians } from "../site/motion.js";
+import { forwardHipDegrees, kneeFlexRadians, kneeFlexTarget } from "../site/motion.js";
 
 function loadHumanModel() {
   const bytes = readFileSync(new URL("../site/assets/human-tripo-rigged.glb", import.meta.url));
@@ -78,5 +78,13 @@ test("estimated knee bend moves both ankles behind the shipped mannequin's toes"
     assert.ok(liftedThigh.sub(thigh).dot(toeDirection) > 0,
       `${side} forward hip lift must move the knee toward the toes`);
     assert.ok(forwardHipDegrees(-Math.PI / 6) > 0);
+
+    // The live device can report a much larger hip lift. A small knee cap
+    // leaves the whole shin pointing at the toes even with the right sign.
+    const raisedShin = shin.clone().applyAxisAngle(
+      new Vector3(0, 0, 1), -105 * Math.PI / 180 + kneeFlexRadians(kneeFlexTarget(105, 0)),
+    );
+    assert.ok(raisedShin.dot(toeDirection) < 0,
+      `${side} ankle must stay behind the knee at 105° hip lift`);
   }
 });

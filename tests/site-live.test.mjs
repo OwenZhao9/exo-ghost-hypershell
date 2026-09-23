@@ -93,7 +93,8 @@ test("visual knee flex bends on forward lift, eases on lowering, and never inven
   assert.equal(kneeFlexTarget(0, 0), 0);
   assert.equal(kneeFlexTarget(-20, -80), 0);
   assert.ok(kneeFlexTarget(25, 60) > kneeFlexTarget(25, -60));
-  assert.equal(kneeFlexTarget(100, 300), 65);
+  assert.ok(kneeFlexTarget(100, 300) > 100);
+  assert.ok(kneeFlexTarget(100, 300) <= 135);
   const follower = new KneeFollower();
   let pose = follower.update({ leftHipDeg: 25, rightHipDeg: 0, leftSpeedDps: 60, rightSpeedDps: 0, at: 0 });
   assert.ok(pose.left > 0 && pose.left < 35);
