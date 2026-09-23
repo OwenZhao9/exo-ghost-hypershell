@@ -68,10 +68,12 @@ def test_gateway_request_contains_image_and_keeps_key_out_of_body():
     request, timeout = seen[0]
     body = json.loads(request.data)
     assert text == '画面里有台阶。'
-    assert request.full_url == ENDPOINT and timeout == 60
+    assert request.full_url == ENDPOINT and timeout == 75
     assert request.get_header('Authorization') == 'Bearer test-key'
     assert body['model'] == MODEL
-    assert body['messages'][0]['content'][1]['image_url']['url'].startswith('data:image/jpeg;base64,')
+    assert body['reasoning_effort'] == 'low' and body['max_tokens'] == 2048
+    assert body['messages'][0]['role'] == 'system'
+    assert body['messages'][1]['content'][1]['image_url']['url'].startswith('data:image/jpeg;base64,')
     assert b'test-key' not in request.data
 
 
