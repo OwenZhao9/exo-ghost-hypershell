@@ -1,13 +1,13 @@
 # 功能说明与代码索引
 
-本文件记录已经实现的行为、代码入口、数据来源与边界。功能变更时同步更新对应小节、`CHANGELOG.md` 和 `site/`；公开版本由 `site/README.md` 中的 Cloudflare Pages 项目发布。
+本文件记录已经实现的行为、代码入口、数据来源与边界。功能变更时同步更新对应小节、`CHANGELOG.md` 和本地展示网页 `site/`；运行方法见 `site/README.md`。
 
 ## 控制链路与实时监视
 
 - **行为**：本机服务通过 USB 串口读取外骨骼传感器帧，显示左右髋角度、速度和指令力矩；通过同一控制链路下发 `zero`、`resist`、`assist`、`hold`、`torque` 策略。自动发现串口并在断开后持续重试；恢复时重新确认就绪状态，不自动恢复施力。
 - **入口**：`python -m runtime.service`；`python -m tools.ctl`；本机 `dashboard/index.html`。
 - **关键文件**：`bridge/ports.py`、`bridge/exo.py`、`bridge/serial_io.py`、`bridge/protocol.py`、`runtime/service.py`、`runtime/commands.py`、`dashboard/app.js`。
-- **数据来源**：串口真实帧；页面只显示新收到的实时帧。记录落在本机 `data/`，公开网站不读取这些私人记录。
+- **数据来源**：串口真实帧；页面只显示新收到的实时帧。记录落在本机 `data/`，展示网页不读取这些私人记录。
 - **安全约束**：斜坡、软限幅、穿戴档加严、急停锁存、腿板掉线静默期；重连后不自动恢复模式。详见 `docs/safety-rules.md`。
 - **验证**：`tests/test_protocol.py`、`tests/test_real_reconnect.py`、`tests/test_runtime.py`、`tests/test_safety_regression.py`；真机连接状态需现场复核。
 
@@ -26,14 +26,14 @@
 
 ## 3D 外骨骼视图
 
-- **当前状态**：交互式公开 3D 展示位于 `site/`；具备实时真机、仿真、历史实测回放三种来源区分的本机 3D 控制视图位于 `feat/auto-reconnect-GPT` 分支的 `dashboard/twin.html`、`twin.js`、`twin-config.json`。
+- **当前状态**：交互式本地 3D 展示位于 `site/`；具备实时真机、仿真、历史实测回放三种来源区分的本机 3D 控制视图位于 `feat/auto-reconnect-GPT` 分支的 `dashboard/twin.html`、`twin.js`、`twin-config.json`。
 - **素材**：`site/assets/exoskeleton.glb` 取自该分支的 Tripo 多视角生成模型；依据获准使用的 Hypershell X Max S 官方图片制作。模型仅为视觉近似，不是制造商 CAD，也不提供碰撞或安全计算。原始素材、任务和关节分组依据见该分支 `dashboard/assets/README.md`。
-- **公开回放**：`site/data/twin-replay.json` 为真实设备的桌面标定记录；不能称作当前在线真机或穿戴记录。静态网站没有远程控制能力。
-- **浏览器加载**：模型内嵌贴图由浏览器以 `blob:` 地址解码；`site/_headers` 的内容安全策略必须允许该来源，且模型加载后隐藏预览图。
+- **本地回放**：`site/data/twin-replay.json` 为真实设备的桌面标定记录；不能称作当前在线真机或穿戴记录。展示页没有设备控制能力。
+- **浏览器加载**：模型内嵌贴图由浏览器以 `blob:` 地址解码；模型加载后隐藏预览图。本地静态服务器不需要 Cloudflare `_headers`。
 
 ## 产品工作区（`integration/product-GPT` 分支）
 
-该功能组已经在独立集成分支实现并推送，代码提交 `9e7996a`；尚未合入 `main`。本说明在主分支和产品分支同步维护。公开网站介绍已完成的功能，不表示产品服务已在公开网站运行。详细现状见集成分支的 `docs/product-status.md` 与 `docs/product-branches.md`。
+该功能组已经在独立集成分支实现并推送，代码提交 `9e7996a`；尚未合入 `main`。本说明在主分支和产品分支同步维护。本地展示网页介绍已完成的功能，不表示产品服务在展示页运行。详细现状见集成分支的 `docs/product-status.md` 与 `docs/product-branches.md`。
 
 | 功能 | 实现文件 | 行为与边界 |
 | --- | --- | --- |
@@ -64,11 +64,11 @@
 
 - 集成分支已运行 `uv run pytest tests/ -q`：134 项通过，覆盖既有控制安全基准、串口恢复、档案来源与计算、数据库隔离、持久化、去重与徽章资格。
 - `node --test tests/product-device.test.mjs`：3 项通过，覆盖启动不发命令、过期/仿真/来源不明/只读连接拒绝施力、参数边界及停止路径。
-- Chrome 已验证产品页面导航、现有真机数据接收、真实桌面记录收录、产品服务重启后记录保留、桌面记录不解锁徽章。测试使用的私人记录未纳入公开站点或 Git。
+- Chrome 已验证产品页面导航、现有真机数据接收、真实桌面记录收录、产品服务重启后记录保留、桌面记录不解锁徽章。测试使用的私人记录未纳入展示页或 Git。
 - 新产品页面的施力操作尚未现场验证；当前展示服务为只读。引路 API 尚缺提供商、地址、模型及密钥配置位置；人体肌力、疲劳、省力比例、里程和爬升没有已验证实现。
 
-## 公开宣传网站
+## 本地展示网页
 
 - **入口**：`site/index.html`；样式 `site/styles.css`；3D 回放 `site/app.js`。
-- **部署**：Cloudflare Pages 项目 `exo-ghost`，操作见 `site/README.md`。
-- **边界**：站点为静态资源；不调用本机 WebSocket、串口、数据库或控制命令。新增功能需对应更新宣传内容，同时保留已验证状态与数据来源说明。
+- **运行**：在本机启动静态 HTTP 服务，命令见 `site/README.md`。用户已取消公网发布。
+- **边界**：网页为静态资源；不调用本机 WebSocket、串口、数据库或控制命令。新增功能需对应更新展示内容，同时保留已验证状态与数据来源说明。
