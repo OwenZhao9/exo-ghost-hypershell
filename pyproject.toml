@@ -13,6 +13,11 @@ dependencies = [
     "websockets>=17.1",
 ]
 
+[project.optional-dependencies]
+laya = [
+    "laya-mlx>=0.2.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",

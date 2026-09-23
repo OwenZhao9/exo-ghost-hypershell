@@ -206,6 +206,159 @@ def test_snapshot_is_json_safe():
     json.dumps(g.snapshot())
 
 
+def test_remote_choice_cannot_set_physical_gain(monkeypatch):
+    """Even a confident remote assist choice cannot create gain during stillness."""
+    g = fresh(backend="rules")
+    for s in frames(None):
+        g.feed(s)
+    confident_assist = Decider("rules").choice(
+        state_for("walk"), "策略？", OPTIONS, rules=policy_weights)
+    monkeypatch.setattr(g.decider, "choice", lambda *a, **kw: confident_assist)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.want == "assist"
+    assert d.gain == 0.0
+
+
+def test_existing_jev_decide_library_sends_typesafe_choice(monkeypatch):
+    """The exoskeleton uses the pinned library's real HTTP adapter, mocked at I/O."""
+    import jev_decide._backends.jev as jev
+
+    sent = {}
+
+    def fake_post(url, payload, *, headers, timeout_s):
+        sent.update(url=url, payload=payload, headers=headers, timeout_s=timeout_s)
+        return {"answers": {"decision": {
+            "choice": "assist", "probabilities": {"zero": 0.02, "resist": 0.03,
+                                                     "assist": 0.95}, "confidence": 0.95}}}
+
+    monkeypatch.setattr(jev, "post_json", fake_post)
+    g = fresh(backend="jev", api_key="test-key")
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.backend == "jev" and d.want == "assist" and d.confidence == 0.95
+    assert sent["url"] == "https://api.typesafe.ai/v1/systemone"
+    assert sent["payload"]["questions"]["decision"]["type"] == "choice"
+    assert sent["headers"]["Authorization"] == "Bearer test-key"
+
+
+def test_auto_backend_never_routes_telemetry_to_generic_llm(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "unrelated-key")
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    g = fresh(backend="auto")
+    assert g.decider.chain == ("jev", "rules")
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.backend == "rules"
+
+
+def test_laya_choice_is_advisory_and_uses_typed_local_result(monkeypatch):
+    from agent.laya_choice import LayaChoice
+
+    seen = {}
+
+    class FakeModel:
+        def predict(self, state, questions):
+            seen.update(state=state, questions=questions)
+            return {"answers": {"policy": {
+                "choice": "assist", "probabilities": {
+                    "zero": 0.02, "resist": 0.03, "assist": 0.95},
+                "confidence": 0.8}}}
+
+    g = fresh(backend="laya")
+    assert isinstance(g.decider, LayaChoice)
+    g.decider._agent = FakeModel()
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.want == "assist" and d.backend == "laya" and d.autopilot is False
+    assert seen["questions"]["policy"]["type"] == "choice"
+    assert "armed" not in seen["state"]
+
+
+def test_laya_failure_falls_back_to_local_rules(monkeypatch):
+    class BrokenModel:
+        def predict(self, *_args):
+            raise RuntimeError("local model failed")
+
+    g = fresh(backend="laya")
+    g.decider._agent = BrokenModel()
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.backend == "rules" and d.degraded is True
+    assert d.autopilot is False
+
+
+def test_laya_rejects_real_body_and_autopilot():
+    from runtime.service import build_parser, validate_args
+    for argv in ([], ["--body", "sim", "--autopilot"]):
+        a = build_parser().parse_args(["--decide-backend", "laya", *argv])
+        with pytest.raises(SystemExit, match="仅支持"):
+            validate_args(a)
+    validate_args(build_parser().parse_args(["--decide-backend", "laya", "--body", "sim"]))
+
+
+def test_unsafe_state_forces_zero_without_remote_call(monkeypatch):
+    g = fresh(backend="jev", autopilot=True)
+    for s in frames("walk"):
+        g.feed(s)
+    monkeypatch.setattr(g.decider, "choice", lambda *a, **kw: pytest.fail("remote called"))
+    g._last_switch = 99.0  # hold must never suppress an emergency zero
+    d = g.tick(100.0, current_policy="assist", armed=False,
+               tripped=None, legs_offline=False)
+    assert d.applied == "zero" and d.gain == 0.0
+    assert d.autopilot and d.held_by == ""
+
+
+def test_stale_stream_forces_zero_without_remote_call(monkeypatch):
+    g = fresh(backend="jev", background=True, autopilot=True)
+    for s in frames("walk"):
+        g.feed(s)
+    monkeypatch.setattr(g.decider, "choice", lambda *a, **kw: pytest.fail("remote called"))
+    d = g.tick(100.0, current_policy="assist", armed=True,
+               tripped=None, legs_offline=False, sample_age_s=0.8)
+    assert d.applied == "zero" and d.gain == 0.0
+
+
+def test_background_request_does_not_block_and_discards_stale_answer(monkeypatch):
+    from threading import Event
+    from time import perf_counter
+
+    release = Event()
+    g = fresh(backend="jev", background=True, autopilot=True)
+    for s in frames("walk"):
+        g.feed(s)
+    answer = Decider("rules").choice(state_for("walk"), "策略？", OPTIONS,
+                                     rules=policy_weights)
+
+    def slow_choice(*args, **kwargs):
+        release.wait(1.0)
+        return answer
+
+    monkeypatch.setattr(g.decider, "choice", slow_choice)
+    started = perf_counter()
+    assert g.tick(100.0, current_policy="zero", armed=True,
+                  tripped=None, legs_offline=False, sample_age_s=0.0) is None
+    assert perf_counter() - started < 0.25
+    assert g.tick(101.0, current_policy="zero", armed=True,
+                  tripped=None, legs_offline=False, sample_age_s=0.0) is None
+    release.set()
+    try:
+        assert g._pending.result(timeout=1.0) == answer
+        assert g.tick(102.0, current_policy="zero", armed=True,
+                      tripped=None, legs_offline=False, sample_age_s=0.0) is None
+        assert g.n_applied == 0
+    finally:
+        g.close()
+
+
 def test_wearer_trajectory_is_deterministic_and_bounded():
     for name, spec in GAITS.items():
         a = angles(spec, 0.37)

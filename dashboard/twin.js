@@ -7,6 +7,9 @@ const RAD = Math.PI / 180;
 const F = { ldeg: 0, rdeg: 1, ldps: 2, rdps: 3, tl: 4, tr: 5,
   pitch: 7, roll: 8, yaw: 9 };
 const host = location.hostname || 'localhost';
+const requestedSimPort = Number(new URLSearchParams(location.search).get('simWsPort'));
+const simWsPort = Number.isInteger(requestedSimPort) && requestedSimPort > 0 && requestedSimPort < 65536
+  ? requestedSimPort : 8766;
 $('control-link').href = `http://${host}:8000/`;
 const viewport = $('viewport');
 const scene = new THREE.Scene();
@@ -68,6 +71,28 @@ function updateMetrics(pose) {
   numeric('pitch', pose?.pitch);
   numeric('roll', pose?.roll);
   numeric('yaw', pose?.yaw);
+}
+
+function updateDecision(decision) {
+  const last = decision?.last;
+  if (!last || !Number.isFinite(last.t) || Date.now() / 1000 - last.t > 5) {
+    $('decision-source').textContent = '—';
+    $('decision-policy').textContent = '—';
+    $('decision-confidence').textContent = '—';
+    $('decision-message').textContent = decision
+      ? '等待新的判断结果。' : '此仿真服务未启用策略判断。';
+    return;
+  }
+  const source = { rules: '本地规则', jev: 'TypeSafe jEV', laya: '本地 Laya' };
+  const policy = { zero: '松劲', resist: '阻尼', assist: '助力' };
+  const fallback = decision.backend === 'laya' && last.backend === 'rules' && last.degraded;
+  $('decision-source').textContent = fallback ? '本地规则（模型未就绪）'
+    : source[last.backend] || last.backend || '未知';
+  $('decision-policy').textContent = policy[last.want] || last.want || '—';
+  $('decision-confidence').textContent = `${Math.round((last.confidence || 0) * 100)}%`;
+  $('decision-message').textContent = last.held
+    ? `置信度门控：保持 ${policy[last.applied] || last.applied}；只显示建议，未向真机下发。`
+    : `当前判断：${policy[last.applied] || last.applied}；只显示建议，未向真机下发。`;
 }
 
 function applyPose(pose) {
@@ -151,7 +176,7 @@ function connect() {
   if (selected === 'replay') return;
   const token = ++socketToken;
   socket?.close();
-  const ws = new WebSocket(`ws://${host}:${selected === 'sim' ? 8766 : 8765}`);
+  const ws = new WebSocket(`ws://${host}:${selected === 'sim' ? simWsPort : 8765}`);
   socket = ws;
   ws.onopen = () => {
     if (mode === selected) setState('数据通道已连接', 'warn');
@@ -164,6 +189,7 @@ function connect() {
       deviceState = message.state;
       sourceMismatch = Boolean(message.body && message.body !== (selected === 'sim' ? 'sim' : 'real'));
       $('frame-rate').textContent = `${Math.round(message.hz || 0)} Hz`;
+      if (selected === 'sim') updateDecision(message.decision);
       updateChannelState();
     } else if (message.k === 's' && Array.isArray(message.v)) {
       lastPose = livePose(message.v);
@@ -174,6 +200,7 @@ function connect() {
   ws.onclose = () => {
     if (token !== socketToken || mode !== selected) return;
     deviceState = 'OFFLINE';
+    if (selected === 'sim') updateDecision(null);
     updateChannelState();
     setTimeout(() => {
       if (token === socketToken && mode === selected) connect();
@@ -267,6 +294,9 @@ async function setMode(next) {
   $('sim-mode').classList.toggle('active', next === 'sim');
   $('replay-mode').classList.toggle('active', next === 'replay');
   $('sim-controls').hidden = next !== 'sim';
+  $('decision-card').hidden = next !== 'sim';
+  $('control-link').hidden = next === 'sim';
+  if (next === 'sim') updateDecision(null);
   $('replay-controls').hidden = next !== 'replay';
   $('source-tag').textContent = next === 'live' ? '实时真机' : next === 'sim' ? '电脑仿真' : '历史录制回放';
   $('torque-title').textContent = next === 'live' ? '下发力矩' : next === 'sim' ? '模拟力矩' : '历史记录力矩';
@@ -322,5 +352,6 @@ function animate(now) {
 }
 
 loadModel();
-connect();
+if (new URLSearchParams(location.search).get('mode') === 'sim') setMode('sim');
+else connect();
 requestAnimationFrame(animate);

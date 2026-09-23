@@ -32,6 +32,13 @@
         <div class="mode-row"><button data-gait="slow">慢走</button><button data-gait="walk">步行</button><button data-gait="fast">快走</button><button data-gait="">停止</button></div>
         <p class="muted">仅驱动电脑中的模型，不向真实外骨骼发送命令。</p>
       </section>
+      <section id="decision-card" class="card" hidden>
+        <h2>策略判断 · 仅建议</h2>
+        <div class="metric"><span>来源</span><strong id="decision-source">—</strong></div>
+        <div class="metric"><span>建议策略</span><strong id="decision-policy">—</strong></div>
+        <div class="metric"><span>置信度</span><strong id="decision-confidence">—</strong></div>
+        <p id="decision-message" class="muted">等待仿真数据与判断结果。</p>
+      </section>
       <section class="card">
         <h2>左右髋关节</h2>
         <div class="leg-row"><span class="mark left"></span><span>左髋</span><strong id="left-angle">—</strong><small id="left-speed">— °/s</small></div>

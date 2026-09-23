@@ -16,22 +16,21 @@
 """
 from __future__ import annotations
 
-import time
 from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from jev_decide import Choice, Decider, Score
+from jev_decide import Choice, Decider
 
 from bridge.protocol import Sample
 
 from .features import FEATURE_LABELS, extract
-from .policy_rules import GAIN_MAX, OPTIONS, explain, gain_rules, policy_weights
+from .policy_rules import OPTIONS, blocked, explain, gain_rules, policy_weights
 
 __all__ = ["Decision", "GhostDecider"]
 
 QUESTION = "现在该用什么策略？"
-RUBRIC = "assist 的增益该给多少（Nm per °/s）"
 
 
 @dataclass(frozen=True)
@@ -72,6 +71,7 @@ class GhostDecider:
                  min_hold_s: float = 6.0, autopilot: bool = False,
                  backend: str = "auto", api_key: Optional[str] = None,
                  timeout_s: float = 1.0,
+                 background: bool = False,
                  on_decision: Optional[Callable[[Decision], None]] = None) -> None:
         self.window: deque[Sample] = deque(maxlen=int(window_s * stream_hz))
         self.period_s = period_s
@@ -79,7 +79,25 @@ class GhostDecider:
         self.min_hold_s = min_hold_s        # 两次换策略之间至少隔这么久，防抖
         self.autopilot = autopilot
         self.on_decision = on_decision
-        self.decider = Decider(backend, api_key=api_key, timeout_s=timeout_s)
+        # This hardware path may send telemetry only to the configured TypeSafe
+        # endpoint.  The library's generic auto chain also includes an LLM
+        # backend, so explicitly restrict the chain to jEV and local rules.
+        if backend == "laya":
+            from .laya_choice import LayaChoice
+            self.decider = LayaChoice()
+        else:
+            self.decider = Decider(backend, api_key=api_key, timeout_s=timeout_s,
+                                   fallback_chain=("jev", "rules"))
+        self.safety_decider = Decider("rules")
+        self.backend_mode = backend
+        self.background = background
+        self._worker: Optional[ThreadPoolExecutor] = None
+        self._pending: Optional[Future[Choice]] = None
+        self._pending_state: Optional[dict[str, Any]] = None
+        self._pending_at = 0.0
+        self._pending_policy = ""
+        self._last_unsafe_tick = 0.0
+        self._last_unsafe_key: tuple[str, str] = ("", "")
         self.last: Optional[Decision] = None
         self.n_decisions = 0
         self.n_held = 0                     # 被置信度门控拦下来几次
@@ -94,33 +112,85 @@ class GhostDecider:
 
     # ---------------- 主循环每隔 period_s 调一次 ----------------
     def due(self, now: float) -> bool:
-        return now - self._last_tick >= self.period_s
+        return self._pending is not None or now - self._last_tick >= self.period_s
+
+    def close(self) -> None:
+        if self._worker is not None:
+            self._worker.shutdown(wait=False, cancel_futures=True)
 
     def tick(self, now: float, *, current_policy: str, armed: bool,
-             tripped: Optional[str], legs_offline: bool) -> Optional[Decision]:
-        """做一次决策。没到点就返回 None。本方法会阻塞（最长 2×timeout_s），
-        所以只能在主循环里调，不准进串口读线程。"""
-        if not self.due(now):
-            return None
-        self._last_tick = now
-
+             tripped: Optional[str], legs_offline: bool,
+             sample_age_s: Optional[float] = None,
+             reconnecting: bool = False) -> Optional[Decision]:
+        """安全状态立即归零；后台模式只收取已完成的网络结果，不阻塞主循环。"""
         state = extract(list(self.window))
         state.update(armed=bool(armed), tripped=tripped or "",
                      legs_offline=bool(legs_offline), current=current_policy)
+        if reconnecting or (sample_age_s is None and self.background):
+            state.update(usable=False, reason="设备未提供新帧")
+        elif sample_age_s is not None and sample_age_s > 0.5:
+            state.update(usable=False, reason="设备数据已过期")
+        unsafe = blocked(state)
+        if unsafe:
+            # Never wait for, or trust, a remote answer in an unsafe state.
+            if self._pending is not None:
+                self._pending.cancel()
+                self._pending_state = None
+            key = (unsafe, current_policy)
+            if key == self._last_unsafe_key and now - self._last_unsafe_tick < self.period_s:
+                return None
+            self._last_unsafe_key = key
+            self._last_unsafe_tick = now
+            self._last_tick = now
+            c = self.safety_decider.choice(state, QUESTION, OPTIONS, rules=policy_weights)
+            return self._finish(now, state, c, current_policy, unsafe=True)
 
-        c: Choice = self.decider.choice(state, QUESTION, OPTIONS, rules=policy_weights)
-        g: Score = self.decider.score(state, RUBRIC, 0.0, GAIN_MAX, rules=gain_rules)
+        if not self.due(now):
+            return None
+
+        if self.background:
+            if self._pending is not None:
+                if not self._pending.done():
+                    return None
+                future, request_state = self._pending, self._pending_state
+                request_at, request_policy = self._pending_at, self._pending_policy
+                self._pending = None
+                self._pending_state = None
+                # A stale answer cannot command a different physical state.
+                if (request_state is None or request_policy != current_policy
+                        or now - request_at > max(self.period_s, 0.5)):
+                    return None
+                c = future.result()
+                return self._finish(now, state, c, current_policy)
+            self._last_tick = now
+            if self._worker is None:
+                self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="jev-choice")
+            self._pending_state = state
+            self._pending_at = now
+            self._pending_policy = current_policy
+            self._pending = self._worker.submit(
+                self.decider.choice, state, QUESTION, OPTIONS, rules=policy_weights)
+            return None
+
+        self._last_tick = now
+        c = self.decider.choice(state, QUESTION, OPTIONS, rules=policy_weights)
+        return self._finish(now, state, c, current_policy)
+
+    def _finish(self, now: float, state: dict[str, Any], c: Choice,
+                current_policy: str, *, unsafe: bool = False) -> Decision:
+        # Physical gain is deterministic; Jev only selects among named policies.
+        gain = gain_rules(state)
         applied = Decider.gate(c, min_confidence=self.min_confidence,
                                on_low="keep", current=current_policy)
         held_by = "gate" if applied != c.value else ""
         # 防抖：刚换过策略就先稳一会儿，别让 Ghost 在两个策略之间来回横跳
-        if applied != current_policy and now - self._last_switch < self.min_hold_s:
+        if not unsafe and applied != current_policy and now - self._last_switch < self.min_hold_s:
             applied = current_policy
             held_by = "hold"
 
         d = Decision(t=now, want=c.value, applied=applied, confidence=c.confidence,
-                     probs=dict(c.probs), gain=g.value, backend=c.backend,
-                     degraded=c.degraded or g.degraded, why=explain(state),
+                     probs=dict(c.probs), gain=gain, backend=c.backend,
+                     degraded=c.degraded, why=explain(state),
                      features={k: v for k, v in state.items() if k in FEATURE_LABELS},
                      held_by=held_by,
                      autopilot=self.autopilot and applied != current_policy)
@@ -142,6 +212,7 @@ class GhostDecider:
             "decisions": self.n_decisions,
             "held": self.n_held,
             "applied": self.n_applied,
-            "backend": self.decider.health().get("backend", "?"),
+            "backend": self.backend_mode,
+            "pending": self._pending is not None,
             "last": None if self.last is None else self.last.to_dict(),
         }

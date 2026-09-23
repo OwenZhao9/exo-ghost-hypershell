@@ -24,6 +24,7 @@
 
 - **反射 / fly-reflex**：`control/reflex_rules.py`、`control/safety.py` 逐帧检查，异常时减弱输出或急停。不能让模型推理阻塞读线程。
 - **直觉 / jev-decide**：`agent/features.py`、`agent/policy_rules.py`、`agent/decide.py` 计算短时间窗口的策略建议；置信度不足时维持原策略。自动执行默认关闭。
+- **本地模型实验 / Laya-MLX**：`feat/jev-sim3d-GPT` 可显式用 `--body sim --decide-backend laya` 在电脑仿真中运行中文多语言模型，3D 视图显示策略建议和置信度。依赖用 `uv sync --extra laya` 安装；先单独运行 `hf download aac6fef/laya-multilingual-mlx --revision f2b4faf51023039425946074e2cf1361d2db11d5` 获取权重。决策进程只读取本地已下载权重，缺失或推理失败时立即回到本地规则，不在后台等待下载。该路径只允许仿真且不允许 `--autopilot`，模型建议不下发至真机。本机此次完成了规则路径、Laya 接口模拟和安全约束测试；因 644 MB 权重下载尚未完成，真实 Laya 推理未验收。
 - **经验 / evomap-genes**：`agent/memory.py`、`agent/capsules.py` 存取问题处理经验；数据库操作放在后台线程，不能阻塞设备读线程。
 - **验证**：`tests/test_reflex_backends.py`、`tests/test_decide.py`、`tests/test_memory.py`。各独立库的版本和测试在各自仓库维护。
 
@@ -36,6 +37,7 @@
 ## 3D 外骨骼视图
 
 - **当前状态**：交互式本地 3D 展示位于 `site/`；具备实时真机、仿真、历史实测回放三种来源区分的本机 3D 控制视图位于 `feat/auto-reconnect-GPT` 分支的 `dashboard/twin.html`、`twin.js`、`twin-config.json`。
+- **仿真策略视图**：`feat/jev-sim3d-GPT` 的 `dashboard/twin.html?mode=sim` 在电脑仿真模式显示建议策略、来源和置信度，可用 `simWsPort` 指向该工作区的独立 WebSocket 端口；仅修改仿真步态，不把策略建议作为控制指令。
 - **素材**：`site/assets/exoskeleton.glb` 取自该分支的 Tripo 多视角生成模型；依据获准使用的 Hypershell X Max S 官方图片制作。模型仅为视觉近似，不是制造商 CAD，也不提供碰撞或安全计算。原始素材、任务和关节分组依据见该分支 `dashboard/assets/README.md`。
 - **本地回放**：`site/data/twin-replay.json` 为真实设备的桌面标定记录；不能称作当前在线真机或穿戴记录。展示页没有设备控制能力。
 - **浏览器加载**：模型内嵌贴图由浏览器以 `blob:` 地址解码；模型加载后隐藏预览图。本地静态服务器不需要 Cloudflare `_headers`。
