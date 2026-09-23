@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { connectTelemetry } from "./live.js";
 
 const viewport = document.getElementById("twin-viewport");
 const loadButton = document.getElementById("load-model");
@@ -9,13 +10,27 @@ const poster = document.getElementById("twin-poster");
 const errorEl = document.getElementById("twin-error");
 const leftEl = document.getElementById("left-angle");
 const rightEl = document.getElementById("right-angle");
+const liveButton = document.getElementById("mode-live");
+const replayModeButton = document.getElementById("mode-replay");
+const humanButton = document.getElementById("human-toggle");
+const sourceEl = document.getElementById("source-label");
+const stateEl = document.getElementById("device-state");
+const leftSpeedEl = document.getElementById("left-speed");
+const rightSpeedEl = document.getElementById("right-speed");
+const leftTorqueEl = document.getElementById("left-torque");
+const rightTorqueEl = document.getElementById("right-torque");
+const rateEl = document.getElementById("frame-rate");
 
 let viewer;
 let replay;
+let mode = "live";
+let live = { label: "正在检查连接", level: "offline", frame: null, status: {} };
 let playing = false;
 let elapsed = 0;
 let previous = 0;
-let neutral;
+let neutral = { live: null, replay: null };
+let humanVisible = true;
+let liveRefreshScheduled = false;
 
 function attachPart(root, spec) {
   if (!spec || !Array.isArray(spec.names) || !Array.isArray(spec.pivot))
@@ -30,21 +45,130 @@ function attachPart(root, spec) {
   return pivot;
 }
 
-function showFrame(frame) {
-  if (!viewer || !frame) return;
-  const left = frame[4];
-  const right = frame[5];
-  if (!neutral) neutral = { left, right };
+function makeJointPose(joint) {
+  if (!joint) return null;
+  joint.parent.updateWorldMatrix(true, false);
+  const parentRotation = joint.parent.getWorldQuaternion(new THREE.Quaternion());
+  return {
+    joint,
+    rest: joint.quaternion.clone(),
+    axis: new THREE.Vector3(0, 0, 1).applyQuaternion(parentRotation.invert()),
+  };
+}
+
+function poseJoint(spec, radians) {
+  if (!spec) return;
+  spec.joint.quaternion.copy(spec.rest).premultiply(
+    new THREE.Quaternion().setFromAxisAngle(spec.axis, radians),
+  );
+}
+
+function createHuman(gltf, holder, center) {
+  const root = gltf.scene;
+  root.scale.setScalar(1.8);
+  root.rotation.y = Math.PI / 2;
+  root.position.set(-center.x - 0.03, 0.18 - center.y - 0.686 * 1.8, -center.z);
+  root.traverse((object) => {
+    if (!object.isMesh) return;
+    const makeGlass = (material) => {
+      const glass = material.clone();
+      glass.color.set(0xd3ecde);
+      glass.transparent = true;
+      glass.opacity = 0.27;
+      glass.depthWrite = false;
+      glass.side = THREE.DoubleSide;
+      return glass;
+    };
+    object.material = Array.isArray(object.material)
+      ? object.material.map(makeGlass) : makeGlass(object.material);
+    object.frustumCulled = false;
+    object.renderOrder = -1;
+  });
+  holder.add(root);
+  root.updateMatrixWorld(true);
+  return {
+    root,
+    left: makeJointPose(root.getObjectByName("leg_joint_L_1")),
+    right: makeJointPose(root.getObjectByName("leg_joint_R_1")),
+  };
+}
+
+function showFrame(frame, source) {
+  if (!frame) return;
+  const { left, right } = frame;
+  if (!neutral[source]) neutral[source] = { left, right };
   leftEl.textContent = `${left.toFixed(1)}°`;
   rightEl.textContent = `${right.toFixed(1)}°`;
+  leftSpeedEl.textContent = `${frame.leftSpeed.toFixed(1)} °/s`;
+  rightSpeedEl.textContent = `${frame.rightSpeed.toFixed(1)} °/s`;
+  leftTorqueEl.textContent = `${frame.leftTorque.toFixed(2)} N·m`;
+  rightTorqueEl.textContent = `${frame.rightTorque.toFixed(2)} N·m`;
+  if (!viewer) return;
   if (viewer.left && viewer.right) {
     const axis = viewer.config.axis || "z";
-    viewer.left.rotation[axis] =
-      (((left - neutral.left) * Math.PI) / 180) * viewer.config.sign.left;
-    viewer.right.rotation[axis] =
-      (((right - neutral.right) * Math.PI) / 180) * viewer.config.sign.right;
+    const leftRotation =
+      (((left - neutral[source].left) * Math.PI) / 180) * viewer.config.sign.left;
+    const rightRotation =
+      (((right - neutral[source].right) * Math.PI) / 180) * viewer.config.sign.right;
+    viewer.left.rotation[axis] = leftRotation;
+    viewer.right.rotation[axis] = rightRotation;
+    poseJoint(viewer.human?.left, leftRotation);
+    poseJoint(viewer.human?.right, rightRotation);
   }
 }
+
+function replayFrame(row) {
+  return {
+    left: row[4], right: row[5], leftSpeed: row[6], rightSpeed: row[7],
+    leftTorque: row[8], rightTorque: row[9],
+  };
+}
+
+function clearReadings() {
+  for (const element of [leftEl, rightEl, leftSpeedEl, rightSpeedEl, leftTorqueEl, rightTorqueEl, rateEl])
+    element.textContent = "—";
+}
+
+function updateMode() {
+  const isLive = mode === "live";
+  liveButton.classList.toggle("active", isLive);
+  replayModeButton.classList.toggle("active", !isLive);
+  liveButton.setAttribute("aria-pressed", String(isLive));
+  replayModeButton.setAttribute("aria-pressed", String(!isLive));
+  replayButton.hidden = isLive;
+  if (isLive) {
+    stateEl.textContent = live.label;
+    stateEl.dataset.level = live.level;
+    sourceEl.textContent = live.frame
+      ? live.status.body === "real" ? "真机实时数据" : "实时数据 · 来源未标记"
+      : "等待真机数据";
+    if (live.frame) {
+      showFrame(live.frame, "live");
+      rateEl.textContent = Number.isFinite(live.status.hz)
+        ? `${live.status.hz.toFixed(0)} Hz` : "—";
+    } else {
+      neutral.live = null;
+      clearReadings();
+    }
+  } else {
+    stateEl.textContent = "桌面标定记录";
+    stateEl.dataset.level = "warn";
+    sourceEl.textContent = "历史桌面实测记录";
+    rateEl.textContent = "—";
+    if (replay?.frames?.length) showFrame(replayFrame(replay.frames[0]), "replay");
+    else clearReadings();
+  }
+}
+
+connectTelemetry({ onChange: (next) => {
+  live = next;
+  if (mode !== "live" || liveRefreshScheduled) return;
+  liveRefreshScheduled = true;
+  requestAnimationFrame(() => {
+    liveRefreshScheduled = false;
+    if (mode === "live") updateMode();
+  });
+} });
 
 function render(now) {
   if (!viewer) return;
@@ -61,7 +185,7 @@ function render(now) {
       if (frames[mid][0] < elapsed) low = mid + 1;
       else high = mid;
     }
-    showFrame(frames[low]);
+    showFrame(replayFrame(frames[low]), "replay");
   }
   viewer.controls.update();
   viewer.renderer.render(viewer.scene, viewer.camera);
@@ -89,7 +213,11 @@ async function startViewer() {
       throw new Error("展示数据暂时不可用");
     const config = await configResponse.json();
     replay = await replayResponse.json();
-    const gltf = await new GLTFLoader().loadAsync("assets/exoskeleton.glb");
+    const loader = new GLTFLoader();
+    const [gltf, humanGltf] = await Promise.all([
+      loader.loadAsync("assets/exoskeleton.glb"),
+      loader.loadAsync("assets/human-rigged.glb"),
+    ]);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -115,24 +243,28 @@ async function startViewer() {
     const holder = new THREE.Group();
     holder.add(root);
     holder.scale.setScalar(2.5 / Math.max(size.x, size.y, size.z, 0.01));
-    scene.add(holder);
     const sphere = new THREE.Box3()
       .setFromObject(holder)
       .getBoundingSphere(new THREE.Sphere());
+    const human = createHuman(humanGltf, holder, center);
+    human.root.visible = humanVisible;
+    scene.add(holder);
     const distance =
-      (sphere.radius / Math.sin((camera.fov * Math.PI) / 360)) * 1.25;
-    camera.position.set(distance * 0.48, distance * 0.32, distance * 0.8);
-    camera.lookAt(0, 0, 0);
+      (sphere.radius / Math.sin((camera.fov * Math.PI) / 360)) * 3.1;
+    camera.position.set(distance * 0.75, distance * 0.28, distance * 0.65);
+    camera.lookAt(0, 0.2, 0);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.minDistance = 1;
     controls.maxDistance = 40;
-    viewer = { scene, camera, renderer, controls, config, left, right };
+    controls.target.set(0, 0.2, 0);
+    viewer = { scene, camera, renderer, controls, config, left, right, human };
     viewport.appendChild(renderer.domElement);
     poster.hidden = true;
     loadButton.hidden = true;
     replayButton.disabled = false;
-    showFrame(replay.frames[0]);
+    humanButton.disabled = false;
+    updateMode();
     resize();
     window.addEventListener("resize", resize);
     previous = performance.now();
@@ -147,6 +279,22 @@ async function startViewer() {
 }
 
 loadButton.addEventListener("click", startViewer);
+liveButton.addEventListener("click", () => {
+  mode = "live";
+  playing = false;
+  replayButton.innerHTML = "播放记录 <span>▶</span>";
+  updateMode();
+});
+replayModeButton.addEventListener("click", () => {
+  mode = "replay";
+  updateMode();
+});
+humanButton.addEventListener("click", () => {
+  humanVisible = !humanVisible;
+  if (viewer?.human) viewer.human.root.visible = humanVisible;
+  humanButton.setAttribute("aria-pressed", String(humanVisible));
+  humanButton.textContent = `半透明人体：${humanVisible ? "显示" : "隐藏"}`;
+});
 replayButton.addEventListener("click", () => {
   playing = !playing;
   replayButton.innerHTML = playing

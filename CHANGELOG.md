@@ -4,6 +4,13 @@
 
 ## 2026-09-23
 
+### 本地 3D 视图订阅只读设备数据
+
+- `site/live.js` 连接本机设备 WebSocket `ws://127.0.0.1:8765`，读取双髋角度、角速度与指令力矩。新鲜有效帧驱动 3D 外骨骼；断流、腿板失效或仿真来源时清空读数并停止姿态更新，断线后每秒重连。浏览器不发送控制命令，不占用串口。
+- `site/app.js`、`index.html`、`styles.css` 增加实时与历史记录切换、连接状态和实时数据面板。旧服务缺少 `body` 时，数据来源显示为“未标记”；历史桌面实测记录始终单独标识。
+- 新增 Cesium Rigged Figure 简化人体模型，改为半透明并将左右髋骨骼绑定到 3D 外骨骼的角度变化；可在网页显示或隐藏，许可和改动见 `site/assets/HUMAN-LICENSE.md`。当前模型外观尚未达到官网写实程度。
+- 更新 `docs/FEATURES.md` 与 `site/README.md` 的行为和限制。验证期间设备服务曾为 `TRIPPED`、`legs_offline=true`、0 Hz，随后恢复至约 178–179 Hz；Chrome 已验证离线显示、3D 加载、历史记录及实时读数。控制进程以 `--body real --profile table` 启动，但旧服务未在状态消息中标记 `body`，网页仍显示“来源未标记”。设备静置，真机动作联动未做现场运动验证。
+
 ### 改为本地展示
 
 - 用户最新要求停止公网发布，Cloudflare Pages 项目 `exo-ghost` 已删除。`site/` 保留为本地网页，运行方法见 `site/README.md`。
