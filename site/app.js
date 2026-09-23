@@ -52,6 +52,66 @@ function attachPart(root, spec) {
   return pivot;
 }
 
+function fitAssembly(parent, names, pivot, scale, offset = [0, 0, 0]) {
+  const nodes = names.map((name) => parent.getObjectByName(name));
+  if (nodes.some((node) => !node)) throw new Error("外骨骼模型缺少固定件");
+  const mount = new THREE.Group();
+  mount.position.fromArray(pivot);
+  parent.add(mount);
+  parent.updateMatrixWorld(true);
+  for (const node of nodes) mount.attach(node);
+  mount.scale.fromArray(scale);
+  mount.position.add(new THREE.Vector3().fromArray(offset));
+  return mount;
+}
+
+function taperSupportToCuff(root, name, cuff) {
+  const bar = root.getObjectByName(name);
+  if (!bar?.isMesh) throw new Error("外骨骼模型缺少腿部支撑杆");
+  root.updateMatrixWorld(true);
+  bar.updateWorldMatrix(true, false);
+  const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert()
+    .multiply(bar.matrixWorld);
+  const toMesh = toRoot.clone().invert();
+  const geometry = bar.geometry.clone();
+  const positions = geometry.getAttribute("position");
+  const point = new THREE.Vector3();
+  for (let index = 0; index < positions.count; index += 1) {
+    point.fromBufferAttribute(positions, index).applyMatrix4(toRoot);
+    // The hip end stays fixed; the knee end lands at the resized cuff.
+    const t = THREE.MathUtils.clamp((0.12 - point.y) / 0.37, 0, 1);
+    const weight = t * t * (3 - 2 * t);
+    point.x += weight * (
+      cuff.pivot[0] + cuff.offset[0]
+      + (point.x - cuff.pivot[0]) * cuff.scale[0] - point.x
+    );
+    point.y += weight * cuff.offset[1];
+    point.z += weight * (
+      cuff.pivot[2]
+      + (point.z - cuff.pivot[2]) * cuff.scale[2] - point.z
+    );
+    point.applyMatrix4(toMesh);
+    positions.setXYZ(index, point.x, point.y, point.z);
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  bar.geometry = geometry;
+}
+
+function fitWornParts(root, left, right, config) {
+  const { waist, leftCuff, rightCuff } = config.fit;
+  fitAssembly(root, waist.names, waist.pivot, waist.scale);
+  for (const [leg, cuff, hip] of [
+    [left, leftCuff, config.left.pivot],
+    [right, rightCuff, config.right.pivot],
+  ]) {
+    if (!leg) continue;
+    const localPivot = cuff.pivot.map((value, index) => value - hip[index]);
+    fitAssembly(leg, cuff.names, localPivot, cuff.scale, cuff.offset);
+  }
+}
+
 function makeJointPose(joint) {
   if (!joint) return null;
   joint.parent.updateWorldMatrix(true, false);
@@ -252,7 +312,7 @@ async function startViewer() {
   errorEl.hidden = true;
   try {
     const [configResponse, replayResponse] = await Promise.all([
-      fetch("data/twin-config.json"),
+      fetch("data/twin-config.json", { cache: "no-store" }),
       fetch("data/twin-replay.json"),
     ]);
     if (!configResponse.ok || !replayResponse.ok)
@@ -280,8 +340,11 @@ async function startViewer() {
     scene.add(rim);
 
     const root = gltf.scene;
+    taperSupportToCuff(root, "tripo_part_3", config.fit.leftCuff);
+    taperSupportToCuff(root, "tripo_part_5", config.fit.rightCuff);
     const left = attachPart(root, config.left);
     const right = attachPart(root, config.right);
+    fitWornParts(root, left, right, config);
     const bounds = new THREE.Box3().setFromObject(root);
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
