@@ -22,6 +22,6 @@ CLAUDE.local.md
 .claude/
 
 .DS_Store
-
 # Each product worktree owns its local database; never commit personal records.
 data/product/
+.wrangler/
