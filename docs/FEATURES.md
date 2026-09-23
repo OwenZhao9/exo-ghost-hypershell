@@ -29,6 +29,7 @@
 - **当前状态**：交互式公开 3D 展示位于 `site/`；具备实时真机、仿真、历史实测回放三种来源区分的本机 3D 控制视图位于 `feat/auto-reconnect-GPT` 分支的 `dashboard/twin.html`、`twin.js`、`twin-config.json`。
 - **素材**：`site/assets/exoskeleton.glb` 取自该分支的 Tripo 多视角生成模型；依据获准使用的 Hypershell X Max S 官方图片制作。模型仅为视觉近似，不是制造商 CAD，也不提供碰撞或安全计算。原始素材、任务和关节分组依据见该分支 `dashboard/assets/README.md`。
 - **公开回放**：`site/data/twin-replay.json` 为真实设备的桌面标定记录；不能称作当前在线真机或穿戴记录。静态网站没有远程控制能力。
+- **浏览器加载**：模型内嵌贴图由浏览器以 `blob:` 地址解码；`site/_headers` 的内容安全策略必须允许该来源，且模型加载后隐藏预览图。
 
 ## 产品工作区（`integration/product-GPT` 分支）
 
