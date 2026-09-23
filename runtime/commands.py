@@ -51,10 +51,18 @@ def _require_table(session, log: Log, what: str) -> bool:
 def _op_policy(cmd, session, bridge, log):
     if not _require_armed(session, log, "策略命令"):
         return
-    session.policy = P.make_policy(cmd["policy"], float(cmd.get("gain", 0.0)),
-                                   float(cmd.get("max", 1.5)))
+    try:
+        session.policy = P.make_policy(
+            cmd["policy"], float(cmd.get("gain", 0.0)), float(cmd.get("max", 1.5)),
+            gain_l=float(cmd["gain_l"]) if "gain_l" in cmd else None,
+            gain_r=float(cmd["gain_r"]) if "gain_r" in cmd else None)
+    except (KeyError, TypeError, ValueError) as exc:
+        log(f"策略命令无效：{exc}", "err")
+        return
     log(f"策略 → {session.policy.name} gain={session.policy.gain} "
-        f"max={session.policy.max_torque}", "ok")
+        f"max={session.policy.max_torque}"
+        + (f" L={session.policy.gain_l} R={session.policy.gain_r}"
+           if session.policy.gain_l is not None else ""), "ok")
 
 
 def _op_zero(cmd, session, bridge, log):

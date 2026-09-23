@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { controlState, liveState, parseFrame } from "../site/live.js";
-import { MODES, modeCommand, modeReadiness } from "../site/control.js";
+import { MODES, modeCommand, modeReadiness, splitResistCommand } from "../site/control.js";
 import { GaitPatternDetector, KneeFollower, kneeFlexTarget, YawFollower } from "../site/motion.js";
 
 const sensor = { k: "s", v: [-12, 23, 1.5, -2.5, 0.1, -0.2, 0, 10, 11, 12] };
@@ -65,6 +65,10 @@ test("mode controls require verified real source, profile and fresh armed data",
   assert.equal(MODES.assist.max, 0.5);
   assert.equal(MODES.resist.max, 0.5);
   assert.throws(() => modeCommand("assist", { ready: false, reason: "不就绪" }), /不就绪/);
+  assert.deepEqual(splitResistCommand(0.3, 0.1, { ready: true }, true),
+    { op: "policy", policy: "resist", gain: 0.2, gain_l: 0.3, gain_r: 0.1, max: 0.5 });
+  assert.throws(() => splitResistCommand(0.3, 0.1, { ready: true }, false), /不支持/);
+  assert.throws(() => splitResistCommand(0.6, 0.1, { ready: true }, true), /0.5/);
 });
 
 test("bilateral alternating hip motion is detected without claiming one-leg movement as gait", () => {

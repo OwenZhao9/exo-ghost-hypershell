@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import math
 import os
+from pathlib import Path
 import queue
 import time
 from typing import Optional
@@ -28,6 +29,19 @@ CMD_FILE = "data/cmd.json"
 STATUS_FILE = "data/status.json"
 EVOMAP_GATEWAY_BASE_URL = "https://api.evomap.ai/v1"
 EVOMAP_DEFAULT_MODEL = "evomap-gemini-3.1-pro-preview"
+EVOMAP_LOCAL_KEY_FILE = Path(__file__).resolve().parents[1] / "data/product/evomap_gateway.key"
+
+
+def load_evomap_key() -> str:
+    """Read the Gateway credential locally; never put it in status or logs."""
+    key = os.environ.get("EVOMAP_API_KEY", "").strip()
+    if key:
+        return key
+    configured = os.environ.get("EVOMAP_API_KEY_FILE", "").strip()
+    path = Path(configured).expanduser() if configured else EVOMAP_LOCAL_KEY_FILE
+    if configured or path.is_file():
+        return path.read_text(encoding="utf-8").strip()
+    return ""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,11 +103,14 @@ def main(argv: Optional[list[str]] = None) -> None:
     a = parser.parse_args(argv)
     if a.keepalive != 0:
         parser.error("--keepalive 力矩脉冲会绕过策略限幅，已停用；请使用 0")
-    evomap_key = os.environ.get("EVOMAP_API_KEY", "").strip()
+    try:
+        evomap_key = load_evomap_key()
+    except (OSError, UnicodeError) as exc:
+        parser.error(f"无法读取 EvoMap Gateway key 文件：{type(exc).__name__}")
     if evomap_key and not evomap_key.startswith("sk-evomap-"):
-        parser.error("EVOMAP_API_KEY 必须是 EvoMap Gateway key（sk-evomap-…）")
-    if evomap_key and a.autopilot:
-        parser.error("EvoMap 大模型目前只能给建议；请移除 --autopilot")
+        parser.error("EvoMap key 必须是 Gateway key（sk-evomap-…）")
+    if a.autopilot and a.profile != "table":
+        parser.error("自动控制目前仅允许桌面档；穿戴档须现场完成验证")
     os.makedirs(a.state_dir, exist_ok=True)
     cmd_file = os.path.join(a.state_dir, "cmd.json")
     status_file = os.path.join(a.state_dir, "status.json")
@@ -112,6 +129,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     decision_pool = None
     decision_future = None
     decision_context = None
+    control_revision = 0
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
 
     journal = Journal()          # 路径要等 ENABLE 之后才知道，见下面 set_path
@@ -182,6 +200,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         if ev.startswith("trip:"):
             session.armed = False
             session.policy = P.make_policy("zero", 0.0, 1.5)
+            if decider is not None:
+                decider.autopilot = False
         msg, level = events.describe(ev)
         log(msg, level, kind="event", event=ev)
         if memory is not None:               # 出了事先去翻以前踩过的坑
@@ -190,6 +210,13 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     def run_cmd(c: dict, who: str) -> None:
         """所有命令都从这里走：先记流水（谁下的、下了什么），再交给分发器。"""
+        nonlocal control_revision
+        if who not in {"ghost", "ghost-safety"} and c.get("op") in {
+                "policy", "zero", "hold", "torque", "estop", "arm"}:
+            control_revision += 1
+            if decider is not None and decider.autopilot:
+                decider.autopilot = False
+                log("人工接管，自动控制已关闭", "warn")
         journal.write("command", by=who, cmd=dict(c))
         if c.get("op") in {"policy", "hold", "torque"} and (
             not bridge.enabled or bridge._reconnecting or bridge.stream_hz() < 50 or
@@ -238,7 +265,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             elif d.applied == session.policy.name:
                 log(f"{head} → 与当前一致，维持 {d.applied}")
             elif d.autopilot:
-                log(f"{head} → 自动切换到 {d.applied}", "ok")
+                log(f"{head} → 自动控制候选，待最新设备状态复核")
             else:
                 log(f"{head} → 建议切到 {d.applied}（自动驾驶未开，不下发）")
             log(f"    依据：{d.why}", kind="decision", decision=d.to_dict())
@@ -250,9 +277,9 @@ def main(argv: Optional[list[str]] = None) -> None:
                                base_url=EVOMAP_GATEWAY_BASE_URL if evomap_key else None,
                                model=os.environ.get("EVOMAP_MODEL", EVOMAP_DEFAULT_MODEL) if evomap_key else None)
         decision_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ghost-decide")
-        log("直觉层：EvoMap Gateway 仅建议，模型 "
-            + os.environ.get("EVOMAP_MODEL", EVOMAP_DEFAULT_MODEL)
-            if evomap_key else "直觉层：本地规则，仅建议")
+        source = ("EvoMap Gateway，模型 " + os.environ.get("EVOMAP_MODEL", EVOMAP_DEFAULT_MODEL)
+                  if evomap_key else "本地规则")
+        log("直觉层：" + source + ("；桌面自动控制" if a.autopilot else "；仅建议"))
 
     # 启动时忽略上次遗留的命令文件，避免重放旧策略
     try:
@@ -306,7 +333,9 @@ def main(argv: Optional[list[str]] = None) -> None:
             if (decider is not None and decision_future is None and bridge.enabled
                     and not bridge._reconnecting and decider.due(now)):
                 decision_context = (session.armed, bridge.tripped,
-                                    bridge.legs_offline, session.policy.name)
+                                    bridge.legs_offline, session.policy.name,
+                                    bridge.enabled, bridge._reconnecting,
+                                    bridge.n_reconnects, control_revision)
                 decision_future = decision_pool.submit(
                     decider.tick, now, current_policy=session.policy.name,
                     armed=session.armed, tripped=bridge.tripped,
@@ -319,28 +348,30 @@ def main(argv: Optional[list[str]] = None) -> None:
                     log(f"决策层出错（已忽略，不影响控制）：{e}", "err")
                 decision_future = None
                 current_context = (session.armed, bridge.tripped,
-                                   bridge.legs_offline, session.policy.name)
+                                   bridge.legs_offline, session.policy.name,
+                                   bridge.enabled, bridge._reconnecting,
+                                   bridge.n_reconnects, control_revision)
                 if decision_context != current_context:
-                    d = None                 # 急停、掉线或手动换策略后丢弃旧建议
+                    d = None                 # 急停、掉线、重连或手动换策略后丢弃旧建议
+                    decider.last = None
                 if d is not None:
                     on_decision(d)
                 if d is not None and decider.autopilot:
-                    caps = {"assist": 0.8, "resist": 1.5, "zero": 1.5}   # 项目规则：assist 上限更严
-                    if d.applied != session.policy.name:
-                        run_cmd({"seq": session.seq, "op": "policy", "policy": d.applied,
-                                 "gain": d.gain if d.applied == "assist" else 0.3,
-                                 "max": caps.get(d.applied, 1.5)}, "ghost")
-                    elif d.applied == "assist":
-                        # 已经在助力里：离散的"换不换策略"被门控管着，但连续的增益
-                        # 该跟着证据走。置信度不足时只准往下调——加力必须过门控。
-                        cur = session.policy.gain
-                        want = d.gain if d.confidence >= a.min_confidence else min(d.gain, cur)
-                        if abs(want - cur) >= 0.05:
-                            arrow = "下调" if want < cur else "上调"
-                            log(f"助力增益{arrow} {cur:.2f} → {want:.2f}"
-                                f"（步态相似度变了，置信 {d.confidence:.2f}）", "ok")
-                            run_cmd({"seq": session.seq, "op": "policy",
-                                     "policy": "assist", "gain": want, "max": 0.8}, "ghost")
+                    from agent.auto_control import next_command
+                    from agent.features import extract
+                    fresh = extract(list(decider.window.copy()))
+                    fresh.update(armed=session.armed, tripped=bridge.tripped or "",
+                                 legs_offline=bridge.legs_offline, current=session.policy.name)
+                    sample_recent = (bridge.latest is not None and
+                                     now - bridge.latest.host_t < 0.25)
+                    command = next_command(
+                        d, current_policy=session.policy.name,
+                        current_gain=session.policy.gain, fresh=fresh,
+                        sample_recent=sample_recent,
+                        quiet=session.in_quiet_period(now, events.LEGS_ONLINE_QUIET_S),
+                        min_confidence=a.min_confidence)
+                    if command is not None:
+                        run_cmd(command, "ghost-safety" if command["op"] == "zero" else "ghost")
 
             # 命令：文件与网页两条来源，同一个分发器
             c = read_cmd_file(session.seq, cmd_file)
@@ -377,6 +408,10 @@ def main(argv: Optional[list[str]] = None) -> None:
                     decision=None if decider is None else decider.snapshot())
                 base["body"] = "real" if isinstance(bridge, ExoBridge) else "sim"
                 base["profile"] = prof.name
+                base["capabilities"] = {"split_resist": True}
+                if getattr(session.policy, "gain_l", None) is not None:
+                    base["gain_l"] = session.policy.gain_l
+                    base["gain_r"] = session.policy.gain_r
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(status_file, status.full_snapshot(

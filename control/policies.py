@@ -60,6 +60,8 @@ class LowPass:
 class Policy:
     name: str = "zero"
     gain: float = 0.0            # Nm per rad/s
+    gain_l: float | None = None  # resist 可分别设置左右腿阻力
+    gain_r: float | None = None
     max_torque: float = 1.5      # 本策略自己的上限（bridge 还有一层软限幅）
     ramp_nm_per_s: float = 3.0   # 该策略允许的力矩斜坡
     deadband_dps: float = 8.0    # |ω| 小于此值不出力，防静止抖动
@@ -80,28 +82,40 @@ class Policy:
         wl = self._clean(s.ldps, self._lastL); self._lastL = wl
         wr = self._clean(s.rdps, self._lastR); self._lastR = wr
         wl = self._lpL(wl, s.host_t); wr = self._lpR(wr, s.host_t)
-        if self.name == "zero" or self.gain == 0.0:
+        gains = (self.gain if self.gain_l is None else self.gain_l,
+                 self.gain if self.gain_r is None else self.gain_r)
+        if self.name == "zero" or gains == (0.0, 0.0):
             return 0.0, 0.0
         sign = -1.0 if self.name == "resist" else +1.0
         out = []
-        for w in (wl, wr):
+        for w, gain in zip((wl, wr), gains):
             if abs(w) < self.deadband_dps:
                 out.append(0.0); continue
-            tau = sign * self.gain * math.radians(w)
+            tau = sign * gain * math.radians(w)
             if self.name == "assist":
                 tau *= max(0.0, min(1.0, scale))
             out.append(max(-self.max_torque, min(self.max_torque, tau)))
         return out[0], out[1]
 
 
-def make_policy(name: str, gain: float, max_torque: float) -> Policy:
+def make_policy(name: str, gain: float, max_torque: float, *,
+                gain_l: float | None = None, gain_r: float | None = None) -> Policy:
     name = name.lower()
     if name not in ("zero", "resist", "assist"):
         raise ValueError("policy 必须是 zero / resist / assist")
+    if not math.isfinite(gain) or gain < 0 or not math.isfinite(max_torque) or max_torque <= 0:
+        raise ValueError("增益和力矩上限必须是有限的非负数")
+    if gain_l is not None or gain_r is not None:
+        if name != "resist" or gain_l is None or gain_r is None:
+            raise ValueError("左右独立增益只适用于阻力模式，且必须同时指定")
+        if any(not math.isfinite(v) or not 0 <= v <= 0.5 for v in (gain_l, gain_r)):
+            raise ValueError("左右腿阻力增益必须在 0 到 0.5 之间")
+        max_torque = min(max_torque, 0.5)
     if name == "assist":
         # 助力是负阻尼：默认更保守
         gain = min(gain, 0.6); max_torque = min(max_torque, 1.2)
-    return Policy(name=name, gain=gain, max_torque=max_torque, ramp_nm_per_s=RAMP_BY_POLICY[name])
+    return Policy(name=name, gain=gain, gain_l=gain_l, gain_r=gain_r,
+                  max_torque=max_torque, ramp_nm_per_s=RAMP_BY_POLICY[name])
 
 
 class HoldPolicy:

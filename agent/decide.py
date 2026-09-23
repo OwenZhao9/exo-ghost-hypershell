@@ -73,7 +73,7 @@ class GhostDecider:
                  min_hold_s: float = 6.0, autopilot: bool = False,
                  backend: str = "auto", api_key: Optional[str] = None,
                  base_url: Optional[str] = None, model: Optional[str] = None,
-                 timeout_s: float = 1.0,
+                 timeout_s: float = 8.0,
                  on_decision: Optional[Callable[[Decision], None]] = None) -> None:
         self.window: deque[Sample] = deque(maxlen=int(window_s * stream_hz))
         self.period_s = period_s

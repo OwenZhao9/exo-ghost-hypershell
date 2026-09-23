@@ -12,7 +12,7 @@ import pytest
 import control.policies as P
 from control.safety import PROFILES
 from runtime import commands, events, status
-from runtime.service import main
+from runtime.service import load_evomap_key, main
 from runtime.session import Session
 
 
@@ -29,11 +29,21 @@ def test_evomap_gateway_never_accepts_hub_key(monkeypatch):
     assert exc.value.code == 2
 
 
-def test_evomap_gateway_disallows_autopilot_before_opening_serial(monkeypatch):
+def test_evomap_gateway_autopilot_rejects_wearing_before_opening_serial(monkeypatch):
     monkeypatch.setenv("EVOMAP_API_KEY", "sk-evomap-test")
     with pytest.raises(SystemExit) as exc:
-        main(["--autopilot", "--no-web", "--body", "real"])
+        main(["--autopilot", "--profile", "wearing", "--no-web", "--body", "real"])
     assert exc.value.code == 2
+
+
+def test_evomap_key_file_is_read_without_exposing_it(monkeypatch, tmp_path):
+    key_file = tmp_path / "gateway.key"
+    key_file.write_text("sk-evomap-test\n")
+    monkeypatch.delenv("EVOMAP_API_KEY", raising=False)
+    monkeypatch.setenv("EVOMAP_API_KEY_FILE", str(key_file))
+    assert load_evomap_key() == "sk-evomap-test"
+    monkeypatch.setenv("EVOMAP_API_KEY", "sk-evomap-override")
+    assert load_evomap_key() == "sk-evomap-override"
 
 
 # ---------- 事件翻译 ----------
@@ -153,6 +163,36 @@ def test_policy_command_switches_and_applies_ramp():
                    session=s, bridge=b, log=lambda m, lv="info": logs.append((m, lv)))
     assert s.policy.name == "resist" and b.ramp == 3.0
     assert any(lv == "ok" for _, lv in logs)
+
+
+def test_independent_resistance_dissipates_each_leg_with_its_own_bound():
+    from bridge.protocol import Sample
+    sample = Sample(host_t=1.0, ms=1000, pitch=0, roll=0, yaw=0,
+                    gx=0, gy=0, gz=0, ax=0, ay=0, az=1, kpa=101,
+                    ldeg=0, rdeg=0, ldps=120, rdps=-120)
+    policy = P.make_policy("resist", 0.2, 1.5, gain_l=0.3, gain_r=0.1)
+    left, right = policy.torque(sample)
+    assert -0.5 <= left < 0 < right <= 0.5
+    assert abs(left) > abs(right)
+    assert policy.max_torque == 0.5
+
+
+def test_independent_resistance_rejects_nonfinite_or_assist_gains():
+    with pytest.raises(ValueError):
+        P.make_policy("resist", 0.3, 0.5, gain_l=float("nan"), gain_r=0.3)
+    with pytest.raises(ValueError):
+        P.make_policy("assist", 0.1, 0.5, gain_l=0.2, gain_r=0.1)
+    with pytest.raises(ValueError):
+        P.make_policy("resist", 0.3, float("inf"), gain_l=0.2, gain_r=0.1)
+
+
+def test_independent_resistance_command_remains_zero_when_tripped():
+    s, b, logs = _session(), FakeBridge(), []
+    s.armed = False
+    commands.apply({"op": "policy", "policy": "resist", "gain": 0.2,
+                    "gain_l": 0.3, "gain_r": 0.1, "max": 0.5},
+                   session=s, bridge=b, log=lambda m, lv="info": logs.append((m, lv)))
+    assert s.policy.name == "zero"
 
 
 def test_policy_is_ignored_while_tripped():

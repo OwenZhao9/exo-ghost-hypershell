@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { connectTelemetry } from "./live.js";
-import { modeReadiness, modeCommand } from "./control.js";
+import { modeReadiness, modeCommand, splitResistCommand } from "./control.js";
 import { GaitPatternDetector, KneeFollower, YawFollower, kneeFlexRadians } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
@@ -28,6 +28,9 @@ const gaitEl = document.getElementById("gait-state");
 const assistButton = document.getElementById("start-assist");
 const aiAdvice = document.getElementById("ai-advice");
 const resistButton = document.getElementById("start-resist");
+const splitResistButton = document.getElementById("start-split-resist");
+const leftResistGain = document.getElementById("left-resist-gain");
+const rightResistGain = document.getElementById("right-resist-gain");
 const zeroButton = document.getElementById("control-zero");
 const estopButton = document.getElementById("control-estop");
 const controlConfirm = document.getElementById("control-confirm");
@@ -318,12 +321,18 @@ function updateControls() {
       : "等待设备报告安全档";
   const ready = modeReadiness(live, confirmedProfile);
   assistButton.disabled = resistButton.disabled = mode !== "live" || !ready.ready;
+  splitResistButton.disabled = mode !== "live" || !ready.ready ||
+    live.status?.capabilities?.split_resist !== true;
   zeroButton.disabled = estopButton.disabled = !live.connected;
   const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
   controlCurrent.textContent = live.connected && live.statusAgeMs < 3000 && live.status?.policy
-    ? `当前模式：${names[live.status.policy] || live.status.policy}` : "当前模式：等待设备";
+    ? `当前模式：${names[live.status.policy] || live.status.policy}` +
+      (live.status?.decision?.autopilot ? " · 自动控制" : "") +
+      (Number.isFinite(live.status.gain_l) && Number.isFinite(live.status.gain_r)
+        ? ` · 左 ${live.status.gain_l} / 右 ${live.status.gain_r}` : "")
+    : "当前模式：等待设备";
   const advice = live.status?.decision?.last;
-  const recent = Number.isFinite(advice?.t) && Date.now() - advice.t * 1000 < 10000;
+  const recent = Number.isFinite(advice?.t) && Date.now() - advice.t * 1000 < 20000;
   const freshStatus = live.connected && live.statusAgeMs < 3000;
   aiAdvice.textContent = !freshStatus
     ? "运动建议：等待实时数据"
@@ -353,6 +362,15 @@ function sendMode(name) {
 
 assistButton.addEventListener("click", () => sendMode("assist"));
 resistButton.addEventListener("click", () => sendMode("resist"));
+splitResistButton.addEventListener("click", () => {
+  try {
+    if (mode !== "live") throw new Error("请先切换到实时数据");
+    const command = splitResistCommand(Number(leftResistGain.value), Number(rightResistGain.value),
+      modeReadiness(live, confirmedProfile), live.status?.capabilities?.split_resist === true);
+    telemetry.send(command);
+    controlReason.textContent = "独立阻力请求已发送，等待设备状态确认";
+  } catch (error) { controlReason.textContent = error.message; }
+});
 zeroButton.addEventListener("click", () => {
   try { telemetry.send({ op: "zero" }); controlReason.textContent = "松劲请求已发送"; }
   catch (error) { controlReason.textContent = error.message; }

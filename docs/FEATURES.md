@@ -24,7 +24,7 @@
 
 - **反射 / fly-reflex**：`control/reflex_rules.py`、`control/safety.py` 逐帧检查，异常时减弱输出或急停。不能让模型推理阻塞读线程。
 - **直觉 / jev-decide**：`agent/features.py`、`agent/policy_rules.py`、`agent/decide.py` 计算短时间窗口的策略建议；置信度不足时维持原策略。自动执行默认关闭。
-- **EvoMap Gateway 模型建议**：启动服务前设置 `EVOMAP_API_KEY`（`sk-evomap-` 开头）后，直觉层通过 EvoMap Gateway 的 OpenAI 兼容 Chat Completions 调用已绑定的模型；默认模型 ID 为 `evomap-gemini-3.1-pro-preview`，可用 `EVOMAP_MODEL` 调整。只发送提取后的运动特征和安全状态，不发送原始逐帧记录或密钥到网页；请求在工作线程执行，不阻塞串口与主循环。服务禁止模型模式下的 `--autopilot`，模型只能建议；本地规则对急停、掉线、低数据率和助力幅度有最终否决权。缺 key 或远端失败时用本地规则。网页 3D 页显示最近建议及来源，不能由建议直接施力。**目前缺少可供本会话使用的完整 Gateway key，尚未验证真实 API 调用或真机助力。**
+- **EvoMap Gateway 模型建议与桌面自动控制**：服务优先读取 `EVOMAP_API_KEY`，其次读取 `EVOMAP_API_KEY_FILE` 指向的文件，再读取本工作树 Git 忽略的 `data/product/evomap_gateway.key`；需要 `sk-evomap-` 开头的 Gateway key。当前本机从产品工作树已有的 `0600` 密钥文件建立本地链接，不将 Token 写入 Git。直觉层通过 EvoMap Gateway 的 OpenAI 兼容 Chat Completions 调用已绑定模型；默认模型 ID 为 `evomap-gemini-3.1-pro-preview`，可用 `EVOMAP_MODEL` 调整。只发送提取后的运动特征和安全状态，不发送原始逐帧记录或密钥到网页；请求在工作线程执行，网络超时预算为每次调用 8 秒。默认只建议。仅在显式 `--autopilot --profile table` 时，可由模型选择 `zero/resist/assist` 模式并经最新本地传感器窗口、安全状态、静默期和实时帧复核后自动下发；阻力增益 0.3、助力增益不超过 0.1，双侧输出上限 0.5 N·m。急停和人工接管会关闭自动控制，断线、重连、数据不足和缺乏步态证据均阻止助力。穿戴档自动控制启动前拒绝。缺 key 或远端失败时用本地规则。**已用现有 Token 验证 Gateway 返回 HTTP 200，`jev-decide` 的模型选择调用返回 `backend=llm` 且未降级；自动控制只完成离线安全测试，尚未进行真机助力验证。**
 - **经验 / evomap-genes**：`agent/memory.py`、`agent/capsules.py` 存取问题处理经验；数据库操作放在后台线程，不能阻塞设备读线程。
 - **验证**：`tests/test_reflex_backends.py`、`tests/test_decide.py`、`tests/test_memory.py`。各独立库的版本和测试在各自仓库维护。
 
@@ -60,6 +60,8 @@
 - **控制门槛**：只在实时模式，且现有控制服务报告 `body=real`、`profile=table|wearing`、`ARMED`、至少 50 Hz、状态与传感器帧新鲜，并且操作者确认与安全档相符的设备放置状态时，才允许手动发送策略命令。历史回放与仿真不开放施力。
 - **关键文件与数据来源**：`site/control.js`、`site/live.js`、`site/app.js` 通过本机 `ws://127.0.0.1:8765` 接收状态/帧并发送受限命令；`runtime/service.py` 将实际 `body` 和 `profile` 加入状态广播。网页不直接打开串口；安全斜坡、限幅、急停仍由原有控制链路执行。
 - **兼容与验证边界**：旧控制进程若未报告 `profile`，实时 3D 仍可显示，但运动按钮禁用。现场真机施力尚未验证；切换运行服务必须先释放串口，不得让两个控制进程同时连接设备。
+- **左右独立阻力**：新服务可接收 `policy=resist` 加 `gain_l`、`gain_r`（必须同时指定，范围各 0–0.5），分别计算左右侧 `τ=-c·ω`，单侧力矩上限强制不超过 0.5 N·m。3D 页提供独立强度选择，只有实时数据、安全档已确认且状态能力报告 `split_resist=true` 时可发送；旧服务不会误把它当成普通双侧阻力。真机输出尚未现场验证。
+- **盲人引导限制**：产品工作树现有眼镜能力是人工选单张照片后请求文字描述，缺少连续障碍感知、实时定位、可靠左右方向与经过验证的非视觉反馈；不将照片描述自动转为腿部阻力或助力指令。此模式目前不能作为实时引路功能使用。
 
 ## 产品工作区（`integration/product-GPT` 分支）
 
