@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { connectTelemetry } from "./live.js";
+import { GaitPatternDetector, YawFollower } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
 const loadButton = document.getElementById("load-model");
@@ -14,6 +15,7 @@ const liveButton = document.getElementById("mode-live");
 const replayModeButton = document.getElementById("mode-replay");
 const humanButton = document.getElementById("human-toggle");
 const alignButton = document.getElementById("align-pose");
+const turnButton = document.getElementById("turn-toggle");
 const sourceEl = document.getElementById("source-label");
 const stateEl = document.getElementById("device-state");
 const leftSpeedEl = document.getElementById("left-speed");
@@ -21,6 +23,7 @@ const rightSpeedEl = document.getElementById("right-speed");
 const leftTorqueEl = document.getElementById("left-torque");
 const rightTorqueEl = document.getElementById("right-torque");
 const rateEl = document.getElementById("frame-rate");
+const gaitEl = document.getElementById("gait-state");
 
 let viewer;
 let replay;
@@ -32,6 +35,9 @@ let previous = 0;
 let neutral = { live: null, replay: null };
 let humanVisible = true;
 let liveRefreshScheduled = false;
+let turnEnabled = true;
+const yawFollower = new YawFollower();
+const gaitDetector = new GaitPatternDetector();
 
 function attachPart(root, spec) {
   if (!spec || !Array.isArray(spec.names) || !Array.isArray(spec.pivot))
@@ -96,6 +102,13 @@ function createHuman(gltf, holder, center) {
 
 function showFrame(frame, source) {
   if (!frame) return;
+  if (source === "live") {
+    yawFollower.update(frame);
+    gaitEl.textContent = gaitDetector.update(frame)
+      ? "检测到交替摆腿" : "未检测到交替摆腿";
+  } else {
+    gaitEl.textContent = "桌面记录";
+  }
   const { left, right } = frame;
   if (!neutral[source]) neutral[source] = { left, right };
   leftEl.textContent = `${left.toFixed(1)}°`;
@@ -105,6 +118,8 @@ function showFrame(frame, source) {
   leftTorqueEl.textContent = `${frame.leftTorque.toFixed(2)} N·m`;
   rightTorqueEl.textContent = `${frame.rightTorque.toFixed(2)} N·m`;
   if (!viewer) return;
+  viewer.holder.rotation.y = source === "live" && turnEnabled
+    ? yawFollower.angle * Math.PI / 180 : 0;
   if (viewer.left && viewer.right) {
     const axis = viewer.config.axis || "z";
     const leftRotation =
@@ -139,6 +154,8 @@ function updateMode() {
   replayButton.hidden = isLive;
   alignButton.hidden = !isLive;
   alignButton.disabled = !viewer || !live.frame;
+  turnButton.hidden = !isLive;
+  turnButton.disabled = !viewer || !live.frame;
   if (isLive) {
     stateEl.textContent = live.label;
     stateEl.dataset.level = live.level;
@@ -150,9 +167,13 @@ function updateMode() {
       rateEl.textContent = Number.isFinite(live.status.hz)
         ? `${live.status.hz.toFixed(0)} Hz` : "—";
     } else {
+      gaitDetector.clear();
+      gaitEl.textContent = "—";
       clearReadings();
     }
   } else {
+    gaitDetector.clear();
+    gaitEl.textContent = "桌面记录";
     stateEl.textContent = "桌面标定记录";
     stateEl.dataset.level = "warn";
     sourceEl.textContent = "历史桌面实测记录";
@@ -260,7 +281,7 @@ async function startViewer() {
     controls.minDistance = 1;
     controls.maxDistance = 40;
     controls.target.set(0, 0.2, 0);
-    viewer = { scene, camera, renderer, controls, config, left, right, human };
+    viewer = { scene, camera, renderer, controls, config, left, right, human, holder };
     viewport.appendChild(renderer.domElement);
     poster.hidden = true;
     loadButton.hidden = true;
@@ -300,7 +321,15 @@ humanButton.addEventListener("click", () => {
 alignButton.addEventListener("click", () => {
   if (!viewer || !live.frame || mode !== "live") return;
   neutral.live = { left: live.frame.left, right: live.frame.right };
+  yawFollower.align(live.frame.yaw, live.frame.receivedAt);
   showFrame(live.frame, "live");
+});
+turnButton.addEventListener("click", () => {
+  turnEnabled = !turnEnabled;
+  if (turnEnabled && live.frame) yawFollower.align(live.frame.yaw, live.frame.receivedAt);
+  if (viewer?.holder) viewer.holder.rotation.y = 0;
+  turnButton.setAttribute("aria-pressed", String(turnEnabled));
+  turnButton.textContent = `转身跟随：${turnEnabled ? "开" : "关"}`;
 });
 replayButton.addEventListener("click", () => {
   playing = !playing;

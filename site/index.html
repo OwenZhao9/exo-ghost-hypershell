@@ -128,6 +128,7 @@
             <button type="button" id="mode-replay" aria-pressed="false">历史记录</button>
             <button type="button" id="human-toggle" aria-pressed="true" disabled>半透明人体：显示</button>
             <button type="button" id="align-pose" title="以当前双髋角度作为模型的对齐姿态" disabled>对齐当前姿态</button>
+            <button type="button" id="turn-toggle" aria-pressed="true" title="根据腰部传感器的短时转向变化旋转模型" disabled>转身跟随：开</button>
             <span id="device-state" role="status">正在检查连接</span>
           </div>
           <div class="twin-viewport" id="twin-viewport">
@@ -165,12 +166,13 @@
             <div><span class="small-label">左侧指令力矩</span><strong id="left-torque">—</strong></div>
             <div><span class="small-label">右侧指令力矩</span><strong id="right-torque">—</strong></div>
             <div><span class="small-label">传感器频率</span><strong id="frame-rate">—</strong></div>
+            <div><span class="small-label">双侧摆腿</span><strong id="gait-state">—</strong></div>
           </div>
         </div>
         <div class="twin-caption">
           <span>01</span>
           <p>
-            3D 外形依据获准使用的 Hypershell 官方产品图制作；半透明人体使用已授权可再使用的骨骼模型。实时视图只读取本机设备服务，以首次有效角度对齐模型，也可手动重新对齐；离线时停止更新姿态。历史数据来自真实设备的桌面标定记录。模型姿态仅用于观察，不用于设备运动控制。
+            3D 外形依据获准使用的 Hypershell 官方产品图制作；半透明人体使用已授权可再使用的骨骼模型。实时视图只读取本机设备服务，以首次有效角度对齐模型，也可手动重新对齐；腰部传感器检测到转向时，模型可跟随转身。双髋角度驱动腿部，持续交替摆动时显示状态；此状态不代表已测得脚步或行走距离。离线时停止更新姿态。历史数据来自真实设备的桌面标定记录。模型姿态仅用于观察，不用于设备运动控制。
             人体模型 <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/RiggedFigure" target="_blank" rel="noopener noreferrer">Rigged Figure</a> © 2017 Cesium，<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>；已调整颜色、透明度、比例和关节姿态。
           </p>
         </div>

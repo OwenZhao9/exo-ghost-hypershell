@@ -17,6 +17,9 @@ export function parseFrame(message) {
     pitch: values[7],
     roll: values[8],
     yaw: values[9],
+    gx: Number.isFinite(values[10]) ? values[10] : null,
+    gy: Number.isFinite(values[11]) ? values[11] : null,
+    gz: Number.isFinite(values[12]) ? values[12] : null,
   };
 }
 
@@ -74,8 +77,8 @@ export function connectTelemetry({ onChange, WebSocketClass = WebSocket, now = (
       } else if (message.k === "s") {
         const parsed = parseFrame(message);
         if (!parsed) return;
-        frame = parsed;
         frameAt = now();
+        frame = { ...parsed, receivedAt: frameAt };
         emit();
       }
     };
