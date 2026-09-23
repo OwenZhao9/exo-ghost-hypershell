@@ -48,6 +48,12 @@ export function kneeFlexTarget(hipDeg, speedDps) {
   return Math.max(0, Math.min(65, 3 * forward + 0.05 * lifting - 0.12 * lowering));
 }
 
+// In the shipped, half-turned mannequin, positive world-Z rotation carries
+// the shin behind the knee. Keep this sign tied to the model geometry.
+export function kneeFlexRadians(flexDeg) {
+  return flexDeg * Math.PI / 180;
+}
+
 export class KneeFollower {
   constructor() { this.clear(); }
 

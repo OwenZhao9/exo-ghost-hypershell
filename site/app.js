@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { connectTelemetry } from "./live.js";
 import { modeReadiness, modeCommand } from "./control.js";
-import { GaitPatternDetector, KneeFollower, YawFollower } from "./motion.js";
+import { GaitPatternDetector, KneeFollower, YawFollower, kneeFlexRadians } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
 const loadButton = document.getElementById("load-model");
@@ -243,8 +243,10 @@ function showFrame(frame, source) {
     });
     // The device has no knee sensor. Flex only the mannequin's lower legs;
     // the exoskeleton cuffs remain attached to the thighs above the knees.
-    poseJoint(viewer.human?.leftKnee, -THREE.MathUtils.degToRad(knees.left));
-    poseJoint(viewer.human?.rightKnee, -THREE.MathUtils.degToRad(knees.right));
+    // After the mannequin's half turn, positive world-Z bends each shin
+    // behind the knee. Negative rotation folded the shin toward the toes.
+    poseJoint(viewer.human?.leftKnee, kneeFlexRadians(knees.left));
+    poseJoint(viewer.human?.rightKnee, kneeFlexRadians(knees.right));
   }
 }
 
