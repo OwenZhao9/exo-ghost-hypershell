@@ -619,8 +619,13 @@ p {
 .twin-control-card p { min-height: 42px; margin: 0 0 17px; color: #a9b6a7; font-size: 12px; line-height: 1.6; }
 .twin-control button { border: 1px solid var(--accent); background: var(--accent); color: #172015; padding: 11px 15px; cursor: pointer; }
 .twin-control button:disabled { opacity: .4; cursor: not-allowed; }
-.control-confirm { display: flex; align-items: center; gap: 10px; margin: 20px 0 12px; color: #c8d2c3; font-size: 12px; }
-.control-confirm input { accent-color: var(--accent); }
+.control-profile { margin: 20px 0 12px; color: #c8d2c3; font-size: 12px; }
+.control-safety-dialog { width: min(420px, calc(100vw - 32px)); padding: 24px; border: 1px solid #869873; background: #182219; color: #e8eee3; }
+.control-safety-dialog::backdrop { background: #000a; }
+.control-safety-dialog h4 { margin: 0 0 10px; font-size: 20px; }
+.control-safety-dialog p { margin: 0 0 20px; color: #c8d2c3; font-size: 14px; line-height: 1.6; }
+.control-safety-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.twin-control .control-safety-actions button:first-child { background: transparent; color: #e8eee3; border-color: #64715c; }
 .control-footer { justify-content: flex-end; }
 .control-footer p { flex: 1; margin: 0; }
 .twin-control .control-footer button { background: transparent; color: #e8eee3; border-color: #64715c; }

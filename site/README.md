@@ -16,7 +16,7 @@ python3 -m http.server 8788 --bind 127.0.0.1 --directory site
 
 ## 更新流程
 
-每次功能变更，同步 `docs/FEATURES.md`、`CHANGELOG.md` 和本网页，按仓库 `AGENTS.md` 进行本机验证。网页不直接打开串口，不读取私人数据库。运动模式只经现有本机 WebSocket 控制服务；需要明确的 `body=real`、`profile=table|wearing`、`ARMED`、新鲜状态和传感器帧及操作者对安全档的确认。断线或重启后不自动开启模式。旧服务若不报告安全档，页面仍可显示实时姿态，但模式按钮保持禁用。`zero` 与 `estop` 在连接存在时始终可发送。
+每次功能变更，同步 `docs/FEATURES.md`、`CHANGELOG.md` 和本网页，按仓库 `AGENTS.md` 进行本机验证。网页不直接打开串口，不读取私人数据库。运动模式只经现有本机 WebSocket 控制服务；需要明确的 `body=real`、`profile=table|wearing`、`ARMED`、新鲜状态和传感器帧。常驻桌面档勾选框已移除；首次点击运动按钮时，页面按服务报告的安全档请求现场确认，确认后再检查就绪状态并发送。桌面档只供无人穿戴测试；穿戴测试须用 `--profile wearing` 启动服务并完成穿戴前检查。断线、失效或安全档变化会撤销网页确认，重启后不自动开启模式。旧服务若不报告安全档，页面仍可显示实时姿态，但模式按钮保持禁用。`zero` 与 `estop` 在连接存在时始终可发送。
 
 ## 实时视图
 
