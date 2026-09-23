@@ -55,6 +55,7 @@
 - **入口**：产品工作目录执行 `uv run python -m product.server`。集成分支默认端口 8110，各功能分支自动使用 8100–8105；数据默认存储在各自目录的 `data/product/product.db`。
 - **眼镜照片入口**：使用 `--glasses-dir /Users/owenzhao/eyeGalss/shots` 只读列出 Luma 眼镜采集的 JPEG。Gateway Key 保存在本机 Git 忽略的 `data/product/evomap_gateway.key`（0600）；启动时执行 `EVOMAP_GATEWAY_API_KEY="$(cat data/product/evomap_gateway.key)" uv run python -m product.server --glasses-dir /Users/owenzhao/eyeGalss/shots`，按需附加既有 `--recordings-dir` 和 `--device-ws` 参数。点击“描述这张照片”才会将所选照片发送给 EvoMap。照片、Key 和描述结果不写入展示网页或 Git。
 - **眼镜 Demo 入口**：在独立工作区启动产品服务时，额外指定 `--glasses-bin /Users/owenzhao/eyeGalss/luma-core/target/release/examples/luma --glasses-unit E06-0194 --guide-demo-upload`，然后在“眼镜看一看”页手动开始。照片目录持续增长，不自动删除用户照片；每轮最多 10 张。页面停止或服务器退出后不再启动新拍照。新照片可自动发送到已授权的 EvoMap，返回结果只在本机页面显示。真人录音尚未提供，语音提示未接入。
+- **展示页代码入口**：本分支的 `site/` 产品代码链接指向 `feat/glasses-demo-GPT`，以便直接查看已实现的演示代码；展示网页仍只在本机运行。
 - **独立运行**：产品服务不打开串口、不启动仿真。通过 `--recordings-dir` 只读收录已有设备记录；指定 `--device-ws` 后订阅既有控制服务。默认不发送控制命令。
 - **控制条件**：启用 `--control` 后，设备必须明确报告 `body=real`、状态 `ARMED`、数据流至少 50 Hz，且传感器与状态消息保持新鲜。断线、静默期、急停或来源不明时拒绝开始运动；松劲、急停保留独立停止路径。
 - **旧服务兼容**：旧控制服务仍可供产品页面显示曲线。缺少 `body` 标记时，产品无法确认真机来源，因此不开放运动操作。切换控制服务需先释放真实串口，再从集成版本启动；不能同时运行两个控制进程。
