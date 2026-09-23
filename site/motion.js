@@ -40,6 +40,12 @@ export class YawFollower {
 
 // The device measures hip motion only. Give the mannequin a restrained,
 // estimated swing-phase knee bend; never present it as a measured knee angle.
+// The half-turned mannequin faces -X: negative world-Z hip rotation is
+// forward lift, while positive world-Z knee rotation bends the shin backward.
+export function forwardHipDegrees(modelHipRadians) {
+  return -modelHipRadians * 180 / Math.PI;
+}
+
 export function kneeFlexTarget(hipDeg, speedDps) {
   if (!Number.isFinite(hipDeg) || !Number.isFinite(speedDps)) return 0;
   const forward = Math.max(0, hipDeg - 1);

@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { connectTelemetry } from "./live.js";
 import { modeReadiness, modeCommand } from "./control.js";
-import { GaitPatternDetector, KneeFollower, YawFollower, kneeFlexRadians } from "./motion.js";
+import { GaitPatternDetector, KneeFollower, YawFollower, forwardHipDegrees, kneeFlexRadians } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
 const loadButton = document.getElementById("load-model");
@@ -235,10 +235,10 @@ function showFrame(frame, source) {
     poseJoint(viewer.human?.left, leftRotation);
     poseJoint(viewer.human?.right, rightRotation);
     const knees = kneeFollower.update({
-      leftHipDeg: THREE.MathUtils.radToDeg(leftRotation),
-      rightHipDeg: THREE.MathUtils.radToDeg(rightRotation),
-      leftSpeedDps: frame.leftSpeed * viewer.config.sign.left,
-      rightSpeedDps: frame.rightSpeed * viewer.config.sign.right,
+      leftHipDeg: forwardHipDegrees(leftRotation),
+      rightHipDeg: forwardHipDegrees(rightRotation),
+      leftSpeedDps: -frame.leftSpeed * viewer.config.sign.left,
+      rightSpeedDps: -frame.rightSpeed * viewer.config.sign.right,
       at: performance.now(),
     });
     // The device has no knee sensor. Flex only the mannequin's lower legs;
