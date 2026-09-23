@@ -1238,3 +1238,33 @@ footer {
     transition: none;
   }
 }
+
+.product-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  margin-top: 28px;
+}
+.product-actions .product-note {
+  margin-top: 0;
+  max-width: 710px;
+}
+.product-actions .button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.records-graphic > span {
+  white-space: nowrap;
+  font-size: clamp(19px, 1.8vw, 28px);
+}
+@media (max-width: 720px) {
+  .product-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .records-graphic > span {
+    font-size: 26px;
+  }
+}
