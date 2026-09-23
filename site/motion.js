@@ -38,6 +38,36 @@ export class YawFollower {
   }
 }
 
+// The device measures hip motion only. Give the mannequin a restrained,
+// estimated swing-phase knee bend; never present it as a measured knee angle.
+export function kneeFlexTarget(hipDeg, speedDps) {
+  if (!Number.isFinite(hipDeg) || !Number.isFinite(speedDps)) return 0;
+  const forward = Math.max(0, hipDeg - 1);
+  const lifting = Math.max(0, Math.min(speedDps, 250));
+  const lowering = Math.max(0, Math.min(-speedDps, 250));
+  return Math.max(0, Math.min(65, 3 * forward + 0.05 * lifting - 0.12 * lowering));
+}
+
+export class KneeFollower {
+  constructor() { this.clear(); }
+
+  clear() {
+    this.left = 0;
+    this.right = 0;
+    this.lastAt = null;
+  }
+
+  update({ leftHipDeg, rightHipDeg, leftSpeedDps, rightSpeedDps, at }) {
+    if (!Number.isFinite(at)) return { left: this.left, right: this.right };
+    const elapsed = this.lastAt === null ? 0.016 : Math.max(0, Math.min((at - this.lastAt) / 1000, 0.1));
+    const blend = 1 - Math.exp(-elapsed / 0.12);
+    this.left += blend * (kneeFlexTarget(leftHipDeg, leftSpeedDps) - this.left);
+    this.right += blend * (kneeFlexTarget(rightHipDeg, rightSpeedDps) - this.right);
+    this.lastAt = at;
+    return { left: this.left, right: this.right };
+  }
+}
+
 // Raw left/right angles have mirrored hardware signs: alternating physical
 // legs produce broadly in-phase traces. This detects the pattern, not steps,
 // foot contact, distance, or proof that a person is wearing the device.
