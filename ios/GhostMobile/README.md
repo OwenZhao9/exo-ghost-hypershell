@@ -26,4 +26,4 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 
 ## TestFlight 状态
 
-本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；首版 TestFlight `1.0 (1)` 已处理并分配给手动分发的内部群组 `Ghost iPhone 内测`。扫码配对改动位于构建 `1.0 (2)`，上传和处理状态以 App Store Connect 页面为准。用户的 iPhone 8 安装、真实扫码配对、控制和失联保护仍须现场验证。二维码识别在 Mac 上校验通过，相机权限被拒绝时的提示在模拟器上检查通过；这不等于已在 iPhone 8 上验证相机扫描。
+本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；首版 TestFlight `1.0 (1)` 与扫码版 `1.0 (2)` 均已处理并分配给手动分发的内部群组 `Ghost iPhone 内测`。用户的 iPhone 8 安装、真实扫码配对、控制和失联保护仍须现场验证。二维码识别在 Mac 上校验通过，相机权限被拒绝时的提示在模拟器上检查通过；这不等于已在 iPhone 8 上验证相机扫描。
