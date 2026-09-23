@@ -121,10 +121,14 @@ class ExoBridge:
         self._stop.clear()
         self._reader = threading.Thread(target=self._read_loop, name="exo-reader", daemon=True)
         self._reader.start()
-        if self._supervisor is None:
+        self._start_supervisor()
+        return self
+
+    def _start_supervisor(self) -> None:
+        """启动持续断流监测，也覆盖服务先启动、串口稍后才出现的路径。"""
+        if self._supervisor is None or not self._supervisor.is_alive():
             self._supervisor = threading.Thread(target=self._supervise, name="exo-supervisor", daemon=True)
             self._supervisor.start()
-        return self
 
     def on_sample(self, cb: Callable[[Sample], None]) -> None:
         self._on_sample.append(cb)
@@ -138,6 +142,7 @@ class ExoBridge:
         self._send_torque_flag = send_torque
         if self._stop.is_set() or self.tripped:
             return
+        self._start_supervisor()
         if self._recovery_thread and self._recovery_thread.is_alive():
             return
         self._recovery_thread = threading.Thread(target=self._reconnect, name="exo-recovery", daemon=True)

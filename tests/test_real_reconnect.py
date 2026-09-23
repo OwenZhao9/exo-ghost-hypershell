@@ -1,5 +1,6 @@
 """真机串口恢复路径：用假的串口协议验证热插拔，不触碰实际电机。"""
 import queue
+import threading
 import time
 
 import serial
@@ -116,3 +117,34 @@ def test_disconnected_and_quiet_states_are_not_running():
     common = dict(tripped=None, armed=True, legs_offline=False, reconnecting=False)
     assert device_state(**common, connected=False) == "RECONN"
     assert device_state(**common, connected=True, quiet=True) == "QUIET"
+
+
+def test_startup_without_port_still_recovers_after_later_disconnect(monkeypatch):
+    import bridge.exo as exo
+
+    available = []
+    connected = threading.Event()
+    monkeypatch.setattr(exo, "port_candidates", lambda _preferred: list(available))
+    monkeypatch.setattr(exo.serial, "Serial", FakeSerial)
+    bridge = ExoBridge(log_dir=None)
+    bridge.on_event(lambda event: connected.set() if event == "reconnected" else None)
+    try:
+        bridge.start_recovery(send_torque=False)
+        assert not connected.wait(timeout=0.05)
+        available[:] = ["/dev/first"]
+        assert connected.wait(timeout=2), "首次插入后应自动连接"
+        assert bridge.port == "/dev/first"
+        assert bridge._supervisor and bridge._supervisor.is_alive()
+
+        connected.clear()
+        available[:] = ["/dev/second"]
+        bridge.last_sample_t = time.time() - 10
+        bridge._enabled_at = time.time() - 10
+        assert connected.wait(timeout=2), "首次晚连接之后，后续断线仍应有人监测并恢复"
+        assert bridge.port == "/dev/second"
+        assert bridge.n_reconnects == 2
+        assert bridge._target == bridge.commanded == (0.0, 0.0)
+    finally:
+        bridge.close()
+        if bridge._supervisor:
+            bridge._supervisor.join(timeout=2)
