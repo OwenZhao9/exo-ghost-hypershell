@@ -25,6 +25,7 @@ class Context:
     device_ws: str | None = None
     control: bool = False
     glasses_dir: Path | None = None
+    guide_demo: object | None = None
 
 
 class App:
@@ -130,6 +131,9 @@ def main(argv=None):
     ap.add_argument('--device-ws', help='现有控制服务地址，如 ws://127.0.0.1:8765')
     ap.add_argument('--control', action='store_true', help='允许页面向已连接的真机服务发送操作命令')
     ap.add_argument('--glasses-dir', type=Path, help='眼镜采集文件目录（只读）')
+    ap.add_argument('--glasses-bin', type=Path, help='启用眼镜演示采集的 Luma 拍照程序')
+    ap.add_argument('--glasses-unit', help='当前眼镜 BLE 广播名，例如 E06-0194')
+    ap.add_argument('--guide-demo-upload', action='store_true', help='演示期间自动将新照片发送给 EvoMap 分析')
     a = ap.parse_args(argv)
     if a.device_ws:
         url = urlsplit(a.device_ws)
@@ -137,8 +141,19 @@ def main(argv=None):
             ap.error('--device-ws 需要是本机的 ws 地址')
     if a.control and not a.device_ws:
         ap.error('--control 需要同时指定 --device-ws')
+    if a.glasses_bin and (not a.glasses_dir or not a.glasses_unit):
+        ap.error('--glasses-bin 需要同时指定 --glasses-dir 和 --glasses-unit')
+    if a.guide_demo_upload and not a.glasses_bin:
+        ap.error('--guide-demo-upload 需要同时指定 --glasses-bin')
     ctx = Context(Store(a.data_dir.resolve() / 'product.db'), a.recordings_dir.resolve(),
                   a.device_ws, a.control, a.glasses_dir.resolve() if a.glasses_dir else None)
+    if a.glasses_bin:
+        from product_features.guide.demo import DemoCapture
+        try:
+            ctx.guide_demo = DemoCapture(a.glasses_bin, ctx.glasses_dir,
+                                         a.glasses_unit, recognize=a.guide_demo_upload)
+        except ValueError as error:
+            ap.error(str(error))
     app = App(ctx)
     app.discover()
     server = ThreadingHTTPServer(('127.0.0.1', a.port), app.handler())
@@ -148,6 +163,8 @@ def main(argv=None):
     except KeyboardInterrupt:
         pass
     finally:
+        if ctx.guide_demo:
+            ctx.guide_demo.close()
         server.server_close()
 
 

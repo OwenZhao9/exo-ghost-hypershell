@@ -22,6 +22,17 @@ SYSTEM_PROMPT = (
     '不要分析指令、列清单、推断安全性或给出行动方向。'
 )
 PROMPT = '请用简体中文描述这张图中可见的环境与可能影响行走的物体；看不清时直接说看不清。'
+DEMO_SYSTEM_PROMPT = (
+    '你只分析一张静止照片，供有人看护的桌面演示使用。'
+    '只能根据画面中直接可见的物体比较图像左、右两侧，不能判断真实道路是否安全。'
+    '画面模糊、地面不可见、被遮挡、两侧相似或缺乏依据时必须给 unknown。'
+    '只输出 JSON 对象，不要包含行动命令或额外文字。'
+)
+DEMO_PROMPT = (
+    '输出 {"direction":"left|right|unknown","confidence":0到1的数字,'
+    '"description":"一句简体中文画面事实"}。left/right 只表示画面该侧看起来更空，'
+    '不是让人朝该方向行走。不能确认时 direction=unknown，confidence=0。'
+)
 
 
 def photo_path(directory: Path, filename: str) -> Path:
@@ -57,7 +68,9 @@ def recent_photos(directory: Path | None, limit: int = 12) -> list[dict]:
     return files[:limit]
 
 
-def describe_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) -> str:
+def describe_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen,
+                  system_prompt: str = SYSTEM_PROMPT, prompt: str = PROMPT,
+                  max_tokens: int = 2048) -> str:
     if not jpeg.startswith(b'\xff\xd8\xff') or not jpeg.rstrip().endswith(b'\xff\xd9'):
         raise ValueError('照片不是完整的 JPEG')
     if not 0 < len(jpeg) <= MAX_JPEG_BYTES:
@@ -70,12 +83,12 @@ def describe_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) -> str
         'model': MODEL,
         'reasoning_effort': 'low',
         'temperature': 0,
-        'messages': [{'role': 'system', 'content': SYSTEM_PROMPT},
+        'messages': [{'role': 'system', 'content': system_prompt},
                      {'role': 'user', 'content': [
-            {'type': 'text', 'text': PROMPT},
+            {'type': 'text', 'text': prompt},
             {'type': 'image_url', 'image_url': {'url': f'data:image/jpeg;base64,{image}'}},
         ]}],
-        'max_tokens': 2048,
+        'max_tokens': max_tokens,
     }, ensure_ascii=False).encode('utf-8')
     request = Request(ENDPOINT, data=body, headers={
         'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
@@ -102,3 +115,30 @@ def describe_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) -> str
         return content.strip()[:1200]
     except (KeyError, IndexError, TypeError, ValueError):
         raise ValueError('EvoMap 没有返回可用的文字描述') from None
+
+
+def analyze_demo_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) -> dict:
+    """Conservative image-side comparison; never a verified walking instruction."""
+    raw = describe_jpeg(jpeg, key=key, opener=opener,
+                        system_prompt=DEMO_SYSTEM_PROMPT, prompt=DEMO_PROMPT,
+                        max_tokens=512)
+    try:
+        text = raw.strip()
+        if text.startswith('```json\n') and text.endswith('\n```'):
+            text = text[len('```json\n'):-len('\n```')]
+        value = json.loads(text)
+        direction = value['direction']
+        confidence = value['confidence']
+        description = value['description']
+        if (direction not in {'left', 'right', 'unknown'} or
+                not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or
+                not 0 <= confidence <= 1 or not isinstance(description, str) or
+                not 0 < len(description.strip()) <= 240):
+            raise ValueError
+    except (ValueError, TypeError, KeyError):
+        return {'direction': 'unknown', 'description': '画面判断不明确。'}
+    description = description.strip()
+    if (confidence < 0.85 or any(word in description for word in
+                                 ('模糊', '看不清', '无法确认', '不清楚', '不确定'))):
+        direction = 'unknown'
+    return {'direction': direction, 'description': description}

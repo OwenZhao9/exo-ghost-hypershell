@@ -12,6 +12,7 @@
 | feat/growth-badges-GPT | growth-badges-GPT | 8104 | product_features/growth/、对应测试 |
 | feat/glasses-guide-GPT | glasses-guide-GPT | 8105 | product_features/guide/、对应测试 |
 | integration/product-GPT | product-GPT | 8110 | 合并、接入 runtime 的边界、联调 |
+| feat/glasses-demo-GPT | glasses-demo-GPT | 8111（启动时显式指定） | 眼镜连续拍照、EvoMap 演示判断与本机页面 |
 | feat/auto-reconnect-GPT | auto-reconnect-GPT | 保持现有配置 | 串口重连（现有独立分支） |
 
 功能分支从产品基础提交分出，不相互合并。通过约定的数据格式通信；集成分支合并各功能分支和已提交的重连改动。main 保留现有稳定版本。

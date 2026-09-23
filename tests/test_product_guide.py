@@ -1,5 +1,7 @@
 import io
 import json
+import base64
+import time
 from urllib.error import HTTPError
 
 import pytest
@@ -7,7 +9,8 @@ import pytest
 from product.server import App, Context
 from product.storage import Store
 from product_features.guide import register
-from product_features.guide.vision import ENDPOINT, MODEL, describe_jpeg, photo_path
+from product_features.guide.vision import ENDPOINT, MODEL, analyze_demo_jpeg, describe_jpeg, photo_path
+from product_features.guide.demo import DemoCapture
 
 JPEG = b'\xff\xd8\xff\xe0camera-frame\xff\xd9'
 
@@ -55,6 +58,58 @@ def test_capture_cannot_escape_directory(tmp_path):
     for name in ['../secret.jpg', 'link.jpg', '/tmp/secret.jpg', 'secret.png']:
         with pytest.raises(ValueError):
             photo_path(shots, name)
+
+
+def test_latest_photo_is_displayed_locally_without_gateway_upload(tmp_path):
+    shots = tmp_path / 'shots'
+    shots.mkdir()
+    (shots / 'new.jpg').write_bytes(JPEG)
+    app = App(Context(Store(tmp_path / 'product.db'), tmp_path, glasses_dir=shots))
+    register(app)
+    result = app.routes['GET', '/api/guide/latest']({})['photo']
+    assert result['filename'] == 'new.jpg'
+    assert base64.b64decode(result['src'].split(',', 1)[1]) == JPEG
+    assert app.routes['GET', '/api/guide/demo']({}) == {'available': False}
+
+
+def test_demo_capture_pins_unit_and_stops_without_upload(tmp_path):
+    shots = tmp_path / 'shots'
+    shots.mkdir()
+    fake = tmp_path / 'luma'
+    fake.write_text('''#!/usr/bin/env python3
+import os, pathlib, sys
+assert os.environ['LUMA_UNIT'] == 'E06-0194'
+assert sys.argv[1:3] == ['photo', '--ai']
+pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
+''')
+    fake.chmod(0o700)
+    demo = DemoCapture(fake, shots, 'E06-0194', recognize=False)
+    demo.start()
+    until = time.monotonic() + 5
+    while demo.status()['sequence'] < 1 and time.monotonic() < until:
+        time.sleep(.02)
+    demo.stop()
+    demo.close()
+    state = demo.status()
+    assert state['sequence'] >= 1
+    assert state['direction'] == 'unknown'
+    assert (shots / state['filename']).is_file()
+
+
+def test_demo_direction_falls_back_when_uncertain():
+    def reply(value, fenced=False):
+        content = json.dumps(value)
+        if fenced:
+            content = f'```json\n{content}\n```'
+        return lambda request, timeout: Reply(json.dumps({
+            'choices': [{'message': {'content': content}}]}).encode())
+
+    assert analyze_demo_jpeg(JPEG, key='test-key', opener=reply({
+        'direction': 'left', 'confidence': .95, 'description': '画面模糊，左侧似乎空旷。'
+    }))['direction'] == 'unknown'
+    assert analyze_demo_jpeg(JPEG, key='test-key', opener=reply({
+        'direction': 'right', 'confidence': .9, 'description': '画面左边有箱子，右边地面可见。'
+    }, fenced=True))['direction'] == 'right'
 
 
 def test_gateway_request_contains_image_and_keeps_key_out_of_body():

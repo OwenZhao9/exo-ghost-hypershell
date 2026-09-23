@@ -108,6 +108,11 @@ canvas { display: block; width: 100%; height: 190px; }
 .record { display: flex; gap: 20px; justify-content: space-between; align-items: center; }
 .record h3 { margin-bottom: 4px; } .record p { margin: 0; }
 .guide-list { display: grid; gap: 0; }
+.guide-preview-image { display: block; width: min(100%, 420px); max-height: 360px; margin: 16px auto 0; object-fit: contain; background: #111; border-radius: 8px; }
+.guide-preview-image[hidden] { display: none; }
+.guide-demo-state { margin: 4px 0 8px; font-size: 20px; font-weight: 650; }
+.guide-demo-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.guide-demo-state + .muted { white-space: pre-line; }
 .guide-photo-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid var(--line); }
 .guide-photo-row:first-child { border-top: 0; }
 .guide-photo-row strong { overflow-wrap: anywhere; }
