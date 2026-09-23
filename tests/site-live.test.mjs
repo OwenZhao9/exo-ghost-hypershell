@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { controlState, liveState, parseFrame } from "../site/live.js";
-import { MODES, modeCommand, modeReadiness, splitResistCommand } from "../site/control.js";
+import { MODES, modeCommand, modeReadiness, splitResistCommand,
+  bilateralCommand, singleLegCommand } from "../site/control.js";
 import { GaitPatternDetector, KneeFollower, kneeFlexTarget, YawFollower } from "../site/motion.js";
 
 const sensor = { k: "s", v: [-12, 23, 1.5, -2.5, 0.1, -0.2, 0, 10, 11, 12] };
@@ -69,6 +70,26 @@ test("mode controls require verified real source, profile and fresh armed data",
     { op: "policy", policy: "resist", gain: 0.2, gain_l: 0.3, gain_r: 0.1, max: 0.5 });
   assert.throws(() => splitResistCommand(0.3, 0.1, { ready: true }, false), /不支持/);
   assert.throws(() => splitResistCommand(0.6, 0.1, { ready: true }, true), /0.5/);
+});
+
+test("bilateral controls are atomic, bounded and require new-service capability", () => {
+  const ready = { ready: true };
+  const left = { mode: "assist", gain: 0.1 };
+  const right = { mode: "resist", gain: 0.3 };
+  assert.deepEqual(bilateralCommand(left, right, ready, true), {
+    op: "policy", policy: "bilateral", gain: 0,
+    mode_l: "assist", gain_l: 0.1, mode_r: "resist", gain_r: 0.3, max: 0.5,
+  });
+  assert.deepEqual(singleLegCommand("l", left,
+    { policy: "bilateral", mode_l: "zero", gain_l: 0,
+      mode_r: "resist", gain_r: 0.3 }, ready, true),
+  bilateralCommand(left, right, ready, true));
+  assert.throws(() => bilateralCommand(left, right, ready, false), /不支持/);
+  assert.throws(() => bilateralCommand(left, right, { ready: false, reason: "离线" }, true), /离线/);
+  assert.throws(() => bilateralCommand({ mode: "assist", gain: 0.2 }, right, ready, true), /0.1/);
+  assert.throws(() => bilateralCommand({ mode: "zero", gain: 0.1 }, right, ready, true), /0/);
+  assert.throws(() => singleLegCommand("r", right,
+    { policy: "assist", gain: 0.2 }, ready, true), /0.1/);
 });
 
 test("bilateral alternating hip motion is detected without claiming one-leg movement as gait", () => {

@@ -4,6 +4,12 @@
 
 ## 2026-09-23
 
+### 左右腿独立助力、阻力及混合模式
+
+- `control/policies.py` 新增原子 `bilateral` 策略：左右腿分别选择 `zero/assist/resist` 和增益。助力不超过 0.1、阻力不超过 0.5、每侧力矩不超过 0.5 N·m，策略斜坡不高于 2 N·m/s，穿戴档继续减半。`runtime/service.py` 在同一帧只计算一次滤波力矩，再仅对助力侧应用安全渐弱；正功预算不被另一腿阻力抵消。腿板掉线的命令门槛补充显式拒绝。
+- `runtime/commands.py` 一次命令切换两侧并严格校验；状态新增 `capabilities.bilateral_modes` 及当前 `mode_l/mode_r/gain_l/gain_r`。旧服务不报告能力时网页新按钮禁用；支持旧版 `split_resist` 的服务仍有原入口。
+- `site/#twin` 新增左右腿独立模式和强度选择，支持单腿应用并保持另一腿当前设置，或同时提交两侧。仅在实时真机来源、安全档确认、`ARMED`、新鲜数据与至少 50 Hz 时放行；松劲和急停仍独立。同步更新 `docs/FEATURES.md`、`site/README.md`。`uv run pytest tests/ -q`：147 项通过；`node --test tests/site-live.test.mjs tests/site-human-model.test.mjs`：9 项通过；Chrome 本地页面检查通过。尚未切换正在占用串口的旧真机服务，未验证真机施力方向、强度或穿戴效果。
+
 ### 桌面自动模式与左右独立阻力
 
 - 显式 `--autopilot --profile table` 允许 EvoMap 模型在 `zero/resist/assist` 间提出自动执行候选，执行前再用最新运动窗口、帧年龄、急停/掉线状态和静默期做本地复核；自动输出统一限制在 0.5 N·m，助力增益不超过 0.1。穿戴档自动控制在串口打开前拒绝。人工接管或急停会关闭自动控制；决策期间发生重连或人工改模式则丢弃旧候选。默认仍是只建议。

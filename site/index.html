@@ -185,7 +185,7 @@
                 <p>运动时施加轻量阻力。首次启动采用 0.3 增益、0.5 N·m 上限。</p>
                 <button id="start-resist" type="button" disabled>开启健身阻力</button>
               </div>
-              <div class="twin-control-card">
+              <div class="twin-control-card" id="legacy-split-resist" hidden>
                 <span>03 / BALANCE</span><h4>左右独立阻力</h4>
                 <p>分别设置双腿阻力，单侧力矩仍限制在 0.5 N·m 以内。</p>
                 <div class="split-resist-inputs">
@@ -193,6 +193,28 @@
                   <label>右腿 <select id="right-resist-gain"><option value="0">关闭</option><option value="0.1">轻</option><option value="0.2">较轻</option><option value="0.3" selected>标准</option><option value="0.5">较强</option></select></label>
                 </div>
                 <button id="start-split-resist" type="button" disabled>开启独立阻力</button>
+              </div>
+              <div class="twin-control-card bilateral-card">
+                <span>03 / LEFT + RIGHT</span><h4>左右腿独立调节</h4>
+                <p>每侧分别选择松劲、动力辅助或健身阻力。单腿应用保留另一腿当前模式；也可同时应用两侧设置。助力增益最高 0.1，单侧力矩上限 0.5 N·m。</p>
+                <div class="bilateral-legs">
+                  <div class="bilateral-leg">
+                    <strong>左腿</strong>
+                    <label>模式 <select id="left-leg-mode"><option value="zero">松劲</option><option value="assist">动力辅助</option><option value="resist">健身阻力</option></select></label>
+                    <label>强度 <select id="left-leg-gain" disabled></select></label>
+                    <button id="apply-left-leg" type="button" disabled>应用左腿</button>
+                  </div>
+                  <div class="bilateral-leg">
+                    <strong>右腿</strong>
+                    <label>模式 <select id="right-leg-mode"><option value="zero">松劲</option><option value="assist">动力辅助</option><option value="resist">健身阻力</option></select></label>
+                    <label>强度 <select id="right-leg-gain" disabled></select></label>
+                    <button id="apply-right-leg" type="button" disabled>应用右腿</button>
+                  </div>
+                </div>
+                <div class="bilateral-actions">
+                  <button id="apply-both-legs" type="button" disabled>同时应用左右腿</button>
+                  <span id="bilateral-availability" role="status">等待控制服务确认支持</span>
+                </div>
               </div>
             </div>
             <label class="control-confirm"><input id="control-confirm" type="checkbox" disabled />
@@ -331,7 +353,7 @@
               <div class="mode-tracks"><i></i><i></i><i></i></div>
             </div>
             <h3>运动模式</h3>
-              <p>查看设备的实时角度与指令力矩。可选择助力、锻炼或左右腿独立阻力；设备就绪后才可开始。</p>
+              <p>查看设备的实时角度与指令力矩。可为左右腿分别选择助力或阻力，也可同时设置双腿；设备就绪后才可开始。</p>
           </article>
           <article class="product-card">
             <div class="product-number">03 / RECORDS</div>
@@ -367,7 +389,7 @@
         </div>
         <div class="product-actions">
           <p class="product-note">
-            产品工作区在本机运行，默认只读查看。此页 3D 区域提供动力辅助、健身阻力与左右独立阻力的手动入口，仅在真机来源、设备状态及安全档确认后开放；个人档案仍留在本机产品工作区。
+            产品工作区在本机运行，默认只读查看。此页 3D 区域提供动力辅助、健身阻力与左右腿独立调节的手动入口，仅在真机来源、设备状态、安全档和服务能力确认后开放；个人档案仍留在本机产品工作区。
           </p>
           <a class="button button-ghost" href="https://github.com/OwenZhao9/exo-ghost-hypershell/tree/integration/product-GPT" target="_blank" rel="noopener noreferrer">
             查看产品代码 <span aria-hidden="true">↗</span>

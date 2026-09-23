@@ -12,7 +12,8 @@ from bridge.serial_io import Sample
 DPS_SATURATION = 3000.0     # |dps| 超过即视为饱和尖峰（实测饱和值 3276.7）
 
 # 项目规则：任何力矩变化都要柔和。每个策略声明自己允许的斜坡（Nm/s），服务切换策略时写入 bridge。
-RAMP_BY_POLICY = {"zero": 3.0, "resist": 3.0, "assist": 2.0, "hold": 1.5, "torque": 1.0}
+RAMP_BY_POLICY = {"zero": 3.0, "resist": 3.0, "assist": 2.0,
+                  "bilateral": 2.0, "hold": 1.5, "torque": 1.0}
 
 # 方向约定（2026-09-22 用户现场确认）：两腿"向上抬"= 左腿负力矩/负角度方向，右腿正力矩/正角度方向
 UP_SIGN = {"L": -1.0, "R": +1.0}
@@ -60,8 +61,10 @@ class LowPass:
 class Policy:
     name: str = "zero"
     gain: float = 0.0            # Nm per rad/s
-    gain_l: float | None = None  # resist 可分别设置左右腿阻力
+    gain_l: float | None = None  # resist / bilateral 可分别设置左右腿增益
     gain_r: float | None = None
+    mode_l: str | None = None     # bilateral 各侧可为 zero / assist / resist
+    mode_r: str | None = None
     max_torque: float = 1.5      # 本策略自己的上限（bridge 还有一层软限幅）
     ramp_nm_per_s: float = 3.0   # 该策略允许的力矩斜坡
     deadband_dps: float = 8.0    # |ω| 小于此值不出力，防静止抖动
@@ -77,6 +80,26 @@ class Policy:
     def _clean(self, dps: float, last: float) -> float:
         return last if abs(dps) > DPS_SATURATION else dps
 
+    @property
+    def leg_modes(self) -> tuple[str, str]:
+        return (self.mode_l or self.name, self.mode_r or self.name)
+
+    @property
+    def has_assist(self) -> bool:
+        return "assist" in self.leg_modes
+
+    def assist_only(self, tau_l: float, tau_r: float) -> tuple[float, float]:
+        """正功预算只计助力腿，不能被另一腿的阻力抵消。"""
+        return tuple(t if mode == "assist" else 0.0
+                     for t, mode in zip((tau_l, tau_r), self.leg_modes))
+
+    def scale_assist_torque(self, tau_l: float, tau_r: float,
+                            scale: float) -> tuple[float, float]:
+        """复用已滤波的力矩，安全渐弱只改变助力侧。"""
+        scale = max(0.0, min(1.0, scale))
+        return tuple(t * scale if mode == "assist" else t
+                     for t, mode in zip((tau_l, tau_r), self.leg_modes))
+
     def torque(self, s: Sample, scale: float = 1.0) -> tuple[float, float]:
         """scale 只作用于 assist（负阻尼渐弱）；resist 永远全额，因为它只会让系统更稳。"""
         wl = self._clean(s.ldps, self._lastL); self._lastL = wl
@@ -84,27 +107,44 @@ class Policy:
         wl = self._lpL(wl, s.host_t); wr = self._lpR(wr, s.host_t)
         gains = (self.gain if self.gain_l is None else self.gain_l,
                  self.gain if self.gain_r is None else self.gain_r)
-        if self.name == "zero" or gains == (0.0, 0.0):
+        modes = self.leg_modes
+        if modes == ("zero", "zero") or gains == (0.0, 0.0):
             return 0.0, 0.0
-        sign = -1.0 if self.name == "resist" else +1.0
         out = []
-        for w, gain in zip((wl, wr), gains):
-            if abs(w) < self.deadband_dps:
+        for w, gain, mode in zip((wl, wr), gains, modes):
+            if mode == "zero" or abs(w) < self.deadband_dps:
                 out.append(0.0); continue
+            sign = -1.0 if mode == "resist" else +1.0
             tau = sign * gain * math.radians(w)
-            if self.name == "assist":
+            if mode == "assist":
                 tau *= max(0.0, min(1.0, scale))
             out.append(max(-self.max_torque, min(self.max_torque, tau)))
         return out[0], out[1]
 
 
 def make_policy(name: str, gain: float, max_torque: float, *,
-                gain_l: float | None = None, gain_r: float | None = None) -> Policy:
+                gain_l: float | None = None, gain_r: float | None = None,
+                mode_l: str | None = None, mode_r: str | None = None) -> Policy:
     name = name.lower()
-    if name not in ("zero", "resist", "assist"):
-        raise ValueError("policy 必须是 zero / resist / assist")
+    if name not in ("zero", "resist", "assist", "bilateral"):
+        raise ValueError("policy 必须是 zero / resist / assist / bilateral")
     if not math.isfinite(gain) or gain < 0 or not math.isfinite(max_torque) or max_torque <= 0:
         raise ValueError("增益和力矩上限必须是有限的非负数")
+    if name == "bilateral":
+        if (mode_l not in ("zero", "assist", "resist") or
+                mode_r not in ("zero", "assist", "resist") or
+                gain_l is None or gain_r is None or gain != 0):
+            raise ValueError("双腿策略须同时指定两侧模式及增益，公共 gain 必须为 0")
+        for mode, leg_gain in ((mode_l, gain_l), (mode_r, gain_r)):
+            cap = {"zero": 0.0, "assist": 0.1, "resist": 0.5}[mode]
+            if not math.isfinite(leg_gain) or not 0 <= leg_gain <= cap:
+                raise ValueError(f"{mode} 增益必须在 0 到 {cap} 之间")
+        return Policy(name=name, gain=0.0, gain_l=gain_l, gain_r=gain_r,
+                      mode_l=mode_l, mode_r=mode_r,
+                      max_torque=min(max_torque, 0.5),
+                      ramp_nm_per_s=RAMP_BY_POLICY[name])
+    if mode_l is not None or mode_r is not None:
+        raise ValueError("独立模式只适用于 bilateral 策略")
     if gain_l is not None or gain_r is not None:
         if name != "resist" or gain_l is None or gain_r is None:
             raise ValueError("左右独立增益只适用于阻力模式，且必须同时指定")

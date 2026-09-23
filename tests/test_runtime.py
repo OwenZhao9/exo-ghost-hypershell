@@ -195,6 +195,62 @@ def test_independent_resistance_command_remains_zero_when_tripped():
     assert s.policy.name == "zero"
 
 
+def test_bilateral_modes_keep_opposite_leg_resistance_when_assist_tapers():
+    from bridge.protocol import Sample
+    sample = Sample(host_t=1.0, ms=1000, pitch=0, roll=0, yaw=0,
+                    gx=0, gy=0, gz=0, ax=0, ay=0, az=1, kpa=101,
+                    ldeg=0, rdeg=0, ldps=120, rdps=120)
+    policy = P.make_policy("bilateral", 0, 1.5, mode_l="assist", gain_l=0.1,
+                           mode_r="resist", gain_r=0.3)
+    left, right = policy.torque(sample)
+    assert 0 < left <= 0.5 and -0.5 <= right < 0
+    assert policy.max_torque == 0.5 and policy.ramp_nm_per_s == 2.0
+    assert policy.assist_only(left, right) == (left, 0.0)
+    assert policy.scale_assist_torque(left, right, 0.0) == (0.0, right)
+    assert policy.scale_assist_torque(left, right, 0.5) == (left * 0.5, right)
+
+
+def test_bilateral_modes_allow_single_leg_and_two_assist_legs():
+    from bridge.protocol import Sample
+    sample = Sample(host_t=1.0, ms=1000, pitch=0, roll=0, yaw=0,
+                    gx=0, gy=0, gz=0, ax=0, ay=0, az=1, kpa=101,
+                    ldeg=0, rdeg=0, ldps=-120, rdps=120)
+    one = P.make_policy("bilateral", 0, 0.5, mode_l="zero", gain_l=0,
+                        mode_r="assist", gain_r=0.1)
+    assert one.torque(sample)[0] == 0 and one.torque(sample)[1] > 0
+    both = P.make_policy("bilateral", 0, 0.5, mode_l="assist", gain_l=0.1,
+                         mode_r="assist", gain_r=0.05)
+    left, right = both.torque(sample)
+    assert left < 0 < right
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"mode_l": "assist", "gain_l": 0.2, "mode_r": "zero", "gain_r": 0},
+    {"mode_l": "zero", "gain_l": 0.1, "mode_r": "resist", "gain_r": 0.2},
+    {"mode_l": "assist", "gain_l": float("nan"), "mode_r": "resist", "gain_r": 0.2},
+    {"mode_l": "assist", "gain_l": 0.1, "mode_r": "resist", "gain_r": 0.6},
+    {"mode_l": "assist", "gain_l": 0.1, "mode_r": "resist"},
+])
+def test_bilateral_modes_reject_unsafe_or_incomplete_commands(kwargs):
+    with pytest.raises(ValueError):
+        P.make_policy("bilateral", 0, 0.5, **kwargs)
+
+
+def test_bilateral_command_is_atomic_and_tripped_state_rejects_it():
+    command = {"op": "policy", "policy": "bilateral", "gain": 0,
+               "mode_l": "assist", "gain_l": 0.1,
+               "mode_r": "resist", "gain_r": 0.3, "max": 0.5}
+    s, b, logs = _session(), FakeBridge(), []
+    commands.apply(command, session=s, bridge=b,
+                   log=lambda m, lv="info": logs.append((m, lv)))
+    assert s.policy.name == "bilateral" and s.policy.leg_modes == ("assist", "resist")
+    assert b.ramp == 2.0
+    s.armed = False
+    commands.apply({**command, "mode_l": "resist"}, session=s, bridge=b,
+                   log=lambda m, lv="info": logs.append((m, lv)))
+    assert s.policy.leg_modes == ("assist", "resist")
+
+
 def test_policy_is_ignored_while_tripped():
     s, b, logs = _session(), FakeBridge(), []
     s.armed = False

@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { connectTelemetry } from "./live.js";
-import { modeReadiness, modeCommand, splitResistCommand } from "./control.js";
+import { modeReadiness, modeCommand, splitResistCommand,
+  bilateralCommand, singleLegCommand } from "./control.js";
 import { GaitPatternDetector, KneeFollower, YawFollower, kneeFlexRadians } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
@@ -29,8 +30,17 @@ const assistButton = document.getElementById("start-assist");
 const aiAdvice = document.getElementById("ai-advice");
 const resistButton = document.getElementById("start-resist");
 const splitResistButton = document.getElementById("start-split-resist");
+const legacySplitResist = document.getElementById("legacy-split-resist");
 const leftResistGain = document.getElementById("left-resist-gain");
 const rightResistGain = document.getElementById("right-resist-gain");
+const leftLegMode = document.getElementById("left-leg-mode");
+const rightLegMode = document.getElementById("right-leg-mode");
+const leftLegGain = document.getElementById("left-leg-gain");
+const rightLegGain = document.getElementById("right-leg-gain");
+const applyLeftLeg = document.getElementById("apply-left-leg");
+const applyRightLeg = document.getElementById("apply-right-leg");
+const applyBothLegs = document.getElementById("apply-both-legs");
+const bilateralAvailability = document.getElementById("bilateral-availability");
 const zeroButton = document.getElementById("control-zero");
 const estopButton = document.getElementById("control-estop");
 const controlConfirm = document.getElementById("control-confirm");
@@ -308,7 +318,11 @@ function updateMode() {
 function updateControls() {
   const profile = live.status?.profile;
   const canConfirm = live.connected && live.status?.body === "real" &&
-    ["table", "wearing"].includes(profile);
+    ["table", "wearing"].includes(profile) && live.status?.state === "ARMED" &&
+    !live.status?.legs_offline && !live.status?.tripped &&
+    Number.isFinite(live.status?.hz) && live.status.hz >= 50 &&
+    Number.isFinite(live.statusAgeMs) && live.statusAgeMs < 3000 &&
+    Number.isFinite(live.frameAgeMs) && live.frameAgeMs < 1000 && !!live.frame;
   if (!canConfirm || (confirmedProfile && confirmedProfile !== profile)) {
     confirmedProfile = null;
     controlConfirm.checked = false;
@@ -321,14 +335,27 @@ function updateControls() {
       : "等待设备报告安全档";
   const ready = modeReadiness(live, confirmedProfile);
   assistButton.disabled = resistButton.disabled = mode !== "live" || !ready.ready;
+  const bilateralSupported = live.status?.capabilities?.bilateral_modes === true;
+  const splitSupported = live.status?.capabilities?.split_resist === true;
+  legacySplitResist.hidden = !splitSupported || bilateralSupported;
   splitResistButton.disabled = mode !== "live" || !ready.ready ||
-    live.status?.capabilities?.split_resist !== true;
+    !splitSupported;
+  for (const button of [applyLeftLeg, applyRightLeg, applyBothLegs])
+    button.disabled = mode !== "live" || !ready.ready || !bilateralSupported;
+  bilateralAvailability.textContent = !bilateralSupported
+    ? "当前控制服务尚不支持左右独立助力与阻力"
+    : ready.ready ? "设备已就绪，请确认两侧选择后应用" : ready.reason;
   zeroButton.disabled = estopButton.disabled = !live.connected;
   const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
+  const active = live.status?.policy === "bilateral"
+    ? `左${names[live.status.mode_l] || live.status.mode_l} ${live.status.gain_l}` +
+      ` / 右${names[live.status.mode_r] || live.status.mode_r} ${live.status.gain_r}`
+    : names[live.status?.policy] || live.status?.policy;
   controlCurrent.textContent = live.connected && live.statusAgeMs < 3000 && live.status?.policy
-    ? `当前模式：${names[live.status.policy] || live.status.policy}` +
+    ? `当前模式：${active}` +
       (live.status?.decision?.autopilot ? " · 自动控制" : "") +
-      (Number.isFinite(live.status.gain_l) && Number.isFinite(live.status.gain_r)
+      (live.status?.policy !== "bilateral" &&
+       Number.isFinite(live.status.gain_l) && Number.isFinite(live.status.gain_r)
         ? ` · 左 ${live.status.gain_l} / 右 ${live.status.gain_r}` : "")
     : "当前模式：等待设备";
   const advice = live.status?.decision?.last;
@@ -371,6 +398,51 @@ splitResistButton.addEventListener("click", () => {
     controlReason.textContent = "独立阻力请求已发送，等待设备状态确认";
   } catch (error) { controlReason.textContent = error.message; }
 });
+
+function setLegGainOptions(modeSelect, gainSelect) {
+  const previous = gainSelect.value;
+  const modeName = modeSelect.value;
+  const choices = modeName === "assist"
+    ? [["0.05", "很轻"], ["0.1", "轻"]]
+    : modeName === "resist"
+      ? [["0.1", "很轻"], ["0.2", "较轻"], ["0.3", "标准"], ["0.5", "较强"]]
+      : [["0", "松劲"]];
+  gainSelect.replaceChildren(...choices.map(([value, label]) => new Option(label, value)));
+  gainSelect.value = choices.some(([value]) => value === previous) ? previous
+    : modeName === "resist" ? "0.3" : modeName === "assist" ? "0.1" : "0";
+  gainSelect.disabled = modeName === "zero";
+}
+
+function legSetting(modeSelect, gainSelect) {
+  return { mode: modeSelect.value,
+    gain: modeSelect.value === "zero" ? 0 : Number(gainSelect.value) };
+}
+
+for (const [modeSelect, gainSelect] of [[leftLegMode, leftLegGain], [rightLegMode, rightLegGain]]) {
+  modeSelect.addEventListener("change", () => setLegGainOptions(modeSelect, gainSelect));
+  setLegGainOptions(modeSelect, gainSelect);
+}
+
+function applyLegSettings(side) {
+  try {
+    if (mode !== "live") throw new Error("请先切换到实时数据");
+    const readiness = modeReadiness(live, confirmedProfile);
+    const supported = live.status?.capabilities?.bilateral_modes === true;
+    const left = legSetting(leftLegMode, leftLegGain);
+    const right = legSetting(rightLegMode, rightLegGain);
+    const command = side === "both"
+      ? bilateralCommand(left, right, readiness, supported)
+      : singleLegCommand(side, side === "l" ? left : right,
+        live.status, readiness, supported);
+    telemetry.send(command);
+    controlReason.textContent = "双腿设置请求已发送，等待设备状态确认";
+  } catch (error) { controlReason.textContent = error.message; }
+}
+
+applyLeftLeg.addEventListener("click", () => applyLegSettings("l"));
+applyRightLeg.addEventListener("click", () => applyLegSettings("r"));
+applyBothLegs.addEventListener("click", () => applyLegSettings("both"));
+
 zeroButton.addEventListener("click", () => {
   try { telemetry.send({ op: "zero" }); controlReason.textContent = "松劲请求已发送"; }
   catch (error) { controlReason.textContent = error.message; }

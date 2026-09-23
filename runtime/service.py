@@ -162,9 +162,13 @@ def main(argv: Optional[list[str]] = None) -> None:
         if decider is not None:
             decider.feed(s)                  # O(1)：只是 append 一帧，决策在主循环里做
         pol = session.policy
-        tl0, tr0 = pol.torque(s, 1.0)
-        sc = session.monitor.assist_scale(s, tl0, tr0) if pol.name == "assist" else 1.0
-        tl, tr = pol.torque(s, sc)
+        tl, tr = pol.torque(s, 1.0)
+        if getattr(pol, "has_assist", False):
+            assist_l, assist_r = pol.assist_only(tl, tr)
+            sc = session.monitor.assist_scale(s, assist_l, assist_r)
+            tl, tr = pol.scale_assist_torque(tl, tr, sc)
+        else:
+            sc = 1.0
         bridge.set_torque(tl, tr)
         stats["scale"] = sc
         stats["n"] += 1
@@ -219,7 +223,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                 log("人工接管，自动控制已关闭", "warn")
         journal.write("command", by=who, cmd=dict(c))
         if c.get("op") in {"policy", "hold", "torque"} and (
-            not bridge.enabled or bridge._reconnecting or bridge.stream_hz() < 50 or
+            not bridge.enabled or bridge.legs_offline or bridge._reconnecting or
+            bridge.stream_hz() < 50 or
             session.in_quiet_period(time.time(), events.LEGS_ONLINE_QUIET_S)
         ):
             log("设备未就绪或处于安全等待期，忽略控制命令；请恢复后重新下发", "warn")
@@ -408,10 +413,13 @@ def main(argv: Optional[list[str]] = None) -> None:
                     decision=None if decider is None else decider.snapshot())
                 base["body"] = "real" if isinstance(bridge, ExoBridge) else "sim"
                 base["profile"] = prof.name
-                base["capabilities"] = {"split_resist": True}
+                base["capabilities"] = {"split_resist": True, "bilateral_modes": True}
                 if getattr(session.policy, "gain_l", None) is not None:
                     base["gain_l"] = session.policy.gain_l
                     base["gain_r"] = session.policy.gain_r
+                if session.policy.name == "bilateral":
+                    base["mode_l"] = session.policy.mode_l
+                    base["mode_r"] = session.policy.mode_r
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(status_file, status.full_snapshot(
