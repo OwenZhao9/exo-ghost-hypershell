@@ -13,6 +13,7 @@ const rightEl = document.getElementById("right-angle");
 const liveButton = document.getElementById("mode-live");
 const replayModeButton = document.getElementById("mode-replay");
 const humanButton = document.getElementById("human-toggle");
+const alignButton = document.getElementById("align-pose");
 const sourceEl = document.getElementById("source-label");
 const stateEl = document.getElementById("device-state");
 const leftSpeedEl = document.getElementById("left-speed");
@@ -136,6 +137,8 @@ function updateMode() {
   liveButton.setAttribute("aria-pressed", String(isLive));
   replayModeButton.setAttribute("aria-pressed", String(!isLive));
   replayButton.hidden = isLive;
+  alignButton.hidden = !isLive;
+  alignButton.disabled = !viewer || !live.frame;
   if (isLive) {
     stateEl.textContent = live.label;
     stateEl.dataset.level = live.level;
@@ -147,7 +150,6 @@ function updateMode() {
       rateEl.textContent = Number.isFinite(live.status.hz)
         ? `${live.status.hz.toFixed(0)} Hz` : "—";
     } else {
-      neutral.live = null;
       clearReadings();
     }
   } else {
@@ -294,6 +296,11 @@ humanButton.addEventListener("click", () => {
   if (viewer?.human) viewer.human.root.visible = humanVisible;
   humanButton.setAttribute("aria-pressed", String(humanVisible));
   humanButton.textContent = `半透明人体：${humanVisible ? "显示" : "隐藏"}`;
+});
+alignButton.addEventListener("click", () => {
+  if (!viewer || !live.frame || mode !== "live") return;
+  neutral.live = { left: live.frame.left, right: live.frame.right };
+  showFrame(live.frame, "live");
 });
 replayButton.addEventListener("click", () => {
   playing = !playing;

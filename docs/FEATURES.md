@@ -29,7 +29,7 @@
 - **当前状态**：交互式本地 3D 展示位于 `site/`。本地网页可在只读的设备实时流与历史桌面实测记录间切换；具备实时真机、仿真、历史实测回放三种来源区分的本机 3D 控制视图位于 `feat/auto-reconnect-GPT` 分支的 `dashboard/twin.html`、`twin.js`、`twin-config.json`。
 - **素材**：`site/assets/exoskeleton.glb` 取自该分支的 Tripo 多视角生成模型；依据获准使用的 Hypershell X Max S 官方图片制作。模型仅为视觉近似，不是制造商 CAD，也不提供碰撞或安全计算。原始素材、任务和关节分组依据见该分支 `dashboard/assets/README.md`。
 - **本地回放**：`site/data/twin-replay.json` 为真实设备的桌面标定记录；不能称作当前在线真机或穿戴记录。展示页没有设备控制能力。
-- **实时观察**：`site/live.js` 只读订阅本机 `ws://127.0.0.1:8765`，解析双髋角度、角速度和指令力矩。`site/app.js` 用有效新帧驱动外骨骼 3D 姿态，断流或腿板失效后清空读数并停止姿态更新，每秒尝试重连。设备未标记 `body` 时仍可显示新鲜读数，但明确标为“来源未标记”；`body=sim` 时不显示为真机数据。网页不发 WebSocket 命令、不打开串口。
+- **实时观察**：`site/live.js` 只读订阅本机 `ws://127.0.0.1:8765`，解析双髋角度、角速度和指令力矩。`site/app.js` 用有效新帧驱动外骨骼与人体髋关节；首帧作为视觉对齐基准，用户可按“对齐当前姿态”重新设定，短暂断线后保留同一基准。断流或腿板失效后清空读数并停止姿态更新，每秒尝试重连。设备未标记 `body` 时仍可显示新鲜读数，但明确标为“来源未标记”；`body=sim` 时不显示为真机数据。网页不发 WebSocket 命令、不打开串口。
 - **人体模型**：`site/assets/human-rigged.glb` 是 Cesium 的 Rigged Figure（CC BY 4.0）；`site/app.js` 将其置于外骨骼内侧、改为半透明并以同一左右髋角度驱动腿部骨骼。用户可以显示/隐藏人体。该模型是简化外形，尚未达到 Hypershell 官网页面的写实程度；来源、许可和修改见 `site/assets/HUMAN-LICENSE.md`。
 - **浏览器加载**：模型内嵌贴图由浏览器以 `blob:` 地址解码；模型加载后隐藏预览图。本地静态服务器不需要 Cloudflare `_headers`。
 
