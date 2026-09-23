@@ -20,6 +20,13 @@
 - **已验证**：完整 Python 测试 126 项通过，包含无端口启动后首次连接、再次断流换口恢复和目标归零。桌面真机已检查约 180 Hz 实时数据、一次自然断流后的恢复记录及保活脉冲后归零；尚未完成反复物理换口/重启压力测试及穿戴恢复验证。
 - **详细说明**：[串口发现、持续恢复与保活](serial-recovery.md)；实现入口为 `bridge/exo.py`、`bridge/ports.py`、`runtime/service.py`、`runtime/status.py`、`dashboard/app.js`、`tools/ctl.py`。
 
+### iPhone 控制端（`feat/ios-mobile-GPT` 分支）
+
+- **入口与状态**：`ios/GhostMobile/` 是最低 iOS 16 的 SwiftUI App。已完成本机编译与发行签名 IPA 导出；尚未在用户的 iPhone 8 上安装、实测或完成 TestFlight 上传。Mac 控制服务仍独占串口，手机使用同一局域网接收真实帧、显示双侧角度曲线并发送受限命令。
+- **配对和数据**：`tools/mobile_pairing.py` 在 Mac 本机显示地址与随机口令；`runtime/mobile.py` 将口令以 0600 权限保存在本机 `data/`，App 存入 iPhone Keychain。`tools/webhub.py` 要求非本机 WebSocket 先配对，仅广播已有真实数据，拒绝未配对访问和超出手机白名单的命令。`data/mobile-pairing-token` 不进 Git。
+- **控制约束**：手机只提供低增益阻尼、轻助力、松劲和急停；无远程重新武装、保持角度及恒定力矩。`runtime/service.py` 仍检查真机来源、已武装、腿板在线、≥50 Hz 和静默期。手机租约每 2 秒必须收到心跳，断线或过期会清掉策略并回到 `zero`。操作者须继续遵守 `docs/safety-rules.md`。
+- **验证与未完成**：`tests/test_mobile.py` 覆盖配对、鉴权、白名单和断线租约；完整 Python 回归 132 项通过。已用 Xcode 26.4 构建 iOS 16 最低目标并导出发行签名 IPA；TestFlight 上传因账号暂无对应 App 记录而未完成，还缺用户 iPhone 8 实机安装和真实连接验证。局域网 WebSocket 仍为明文，限可信 Wi-Fi，不支持公网远程控制。具体操作与 TestFlight 进度见 [iPhone 工程说明](../ios/GhostMobile/README.md)。
+
 ## Ghost 三层 Agent
 
 - **反射 / fly-reflex**：`control/reflex_rules.py`、`control/safety.py` 逐帧检查，异常时减弱输出或急停。不能让模型推理阻塞读线程。

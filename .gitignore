@@ -15,6 +15,7 @@ data/genes.db
 data/cmd.json
 data/status.json
 data/sim-runtime/
+data/mobile-pairing-token
 !data/samples/
 
 # Claude Code 的本地工作配置，不属于项目交付物
@@ -24,3 +25,7 @@ CLAUDE.local.md
 
 .DS_Store
 .wrangler/
+ios/**/build/
+ios/**/DerivedData/
+ios/**/*.xcuserstate
+ios/**/xcuserdata/

@@ -2,9 +2,10 @@
 在服务里：hub = WebHub(on_command); hub.start(); hub.push_sample(...); hub.push_status(...); hub.push_event(...)
 """
 from __future__ import annotations
-import asyncio, http.server, json, os, socket, threading, time
+import asyncio, http.server, json, os, socket, threading, time, uuid
 from typing import Callable, Optional
 import websockets
+from runtime.mobile import is_loopback, mobile_command, token_matches
 
 DASH_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dashboard")
 
@@ -27,10 +28,12 @@ class _Quiet(http.server.SimpleHTTPRequestHandler):
 
 class WebHub:
     def __init__(self, on_command: Callable[[dict], None], ws_port: int = 8765,
-                 http_port: int = 8000, sample_div: int = 3, body: str = "real"):
+                 http_port: int = 8000, sample_div: int = 3, body: str = "real",
+                 mobile_token: str = ""):
         self.on_command = on_command
         self.ws_port, self.http_port, self.sample_div = ws_port, http_port, sample_div
         self.body = body
+        self.mobile_token = mobile_token
         self._clients: set = set()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._n = 0
@@ -66,8 +69,21 @@ class WebHub:
         self._loop.run_until_complete(main())
 
     async def _handler(self, ws):
-        self._clients.add(ws)
+        remote = not is_loopback(ws.remote_address)
+        client_id = uuid.uuid4().hex if remote else ""
         try:
+            if remote:
+                try:
+                    first = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                except (asyncio.TimeoutError, ValueError, TypeError):
+                    await ws.close(code=1008, reason="配对超时或无效")
+                    return
+                if not (isinstance(first, dict) and first.get("op") == "pair"
+                        and token_matches(self.mobile_token, first.get("token"))):
+                    await ws.close(code=1008, reason="配对失败")
+                    return
+                await ws.send(json.dumps({"k": "paired"}))
+            self._clients.add(ws)
             if self._last_status: await ws.send(json.dumps({"k": "st", **self._last_status}))
             for ev in self._events[-30:]: await ws.send(json.dumps(ev))
             async for msg in ws:
@@ -76,11 +92,20 @@ class WebHub:
                 except Exception:
                     continue
                 if isinstance(c, dict) and "op" in c:
-                    self.on_command(c)
+                    if remote:
+                        safe = mobile_command(c, client_id)
+                        if safe is not None:
+                            self.on_command(safe)
+                    elif c.get("op") not in {"pair", "heartbeat", "mobile_lost"}:
+                        self.on_command({k: v for k, v in c.items()
+                                         if k not in {"_mobile", "_client_id"}})
         except Exception:
             pass
         finally:
             self._clients.discard(ws)
+            if remote:
+                self.on_command({"op": "mobile_lost", "_mobile": True,
+                                 "_client_id": client_id})
 
     # ---------- 广播 ----------
     def _broadcast(self, text: str) -> None:

@@ -19,6 +19,7 @@ from bridge.exo import ExoBridge
 from bridge.protocol import DPS_SATURATION
 from control.safety import PROFILES
 from runtime import commands, events, status
+from runtime.mobile import MobileLease, pairing_token, release_mobile_control
 from runtime.journal import Journal
 from runtime.session import Session
 from tools.webhub import WebHub, lan_ip
@@ -94,7 +95,9 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     cmdq: "queue.Queue[dict]" = queue.Queue()
     hub = None if a.no_web else WebHub(on_command=cmdq.put,
-                                       http_port=a.http_port, ws_port=a.ws_port)
+                                       http_port=a.http_port, ws_port=a.ws_port,
+                                       mobile_token=pairing_token(a.state_dir))
+    mobile_lease = MobileLease()
 
     bridge = make_bridge(a, session)
     if hub:
@@ -153,6 +156,11 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     # ---------- 设备事件 ----------
     def on_event(ev: str) -> None:
+        if ev in {"stall", "reconnected", "legs_offline", "legs_online"} or ev.startswith("trip:"):
+            mobile_lease.clear()
+        if ev in {"legs_offline", "legs_online"}:
+            session.policy = P.make_policy("zero", 0.0, 1.5)
+            session.pulse_until = 0.0
         if ev == "stall":
             session.policy = P.make_policy("zero", 0.0, 1.5)
             session.pulse_until = 0.0
@@ -183,6 +191,29 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     def run_cmd(c: dict, who: str) -> None:
         """所有命令都从这里走：先记流水（谁下的、下了什么），再交给分发器。"""
+        mobile = c.get("_mobile") is True
+        client_id = c.get("_client_id", "")
+        op = c.get("op")
+        if mobile and op == "heartbeat":
+            if mobile_lease.refresh(client_id):
+                session.last_motion = time.time()
+            return
+        if mobile and op == "mobile_lost":
+            if release_mobile_control(mobile_lease, session=session, bridge=bridge,
+                                      log=log, owner=client_id):
+                log("手机连接断开，已回到松劲", "warn")
+            return
+        if mobile and op == "policy":
+            ready = (isinstance(bridge, ExoBridge) and session.armed and not bridge.tripped
+                     and bridge.enabled and not bridge._reconnecting and not bridge.legs_offline
+                     and bridge.stream_hz() >= 50
+                     and not session.in_quiet_period(time.time(), events.LEGS_ONLINE_QUIET_S))
+            if not ready:
+                log("手机控制请求被拒绝：真机尚未就绪", "warn")
+                return
+        if mobile and op in {"zero", "estop"}:
+            mobile_lease.clear()
+            session.pulse_until = 0.0
         journal.write("command", by=who, cmd=dict(c))
         if c.get("op") in {"policy", "hold", "torque"} and (
             not bridge.enabled or bridge._reconnecting or bridge.stream_hz() < 50 or
@@ -190,7 +221,12 @@ def main(argv: Optional[list[str]] = None) -> None:
         ):
             log("设备未就绪或处于安全等待期，忽略控制命令；请恢复后重新下发", "warn")
             return
+        if not mobile and op in {"policy", "zero", "hold", "torque", "estop", "arm"}:
+            mobile_lease.clear()
         commands.apply(c, session=session, bridge=bridge, log=log)
+        if mobile and op == "policy":
+            mobile_lease.start(client_id)
+            session.last_motion = time.time()
 
     bridge.on_event(on_event)
 
@@ -244,7 +280,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     if hub:
         hub.start()
         print(f"仪表盘：http://localhost:{a.http_port}  "
-              f"（手机：http://{lan_ip()}:{a.http_port}）", flush=True)
+              f"手机 App 配对：python -m tools.mobile_pairing --state-dir {a.state_dir} "
+              f"--ws-port {a.ws_port}（Mac {lan_ip()}）", flush=True)
     version_info = "pending"
     try:
         bridge.open()
@@ -282,6 +319,10 @@ def main(argv: Optional[list[str]] = None) -> None:
         while True:
             time.sleep(0.2)
             now = time.time()
+            if mobile_lease.expired():
+                if release_mobile_control(mobile_lease, session=session, bridge=bridge,
+                                          log=log):
+                    log("手机心跳超时，已回到松劲", "warn")
 
             # 保活脉冲
             s_ = bridge.latest
@@ -355,6 +396,7 @@ def main(argv: Optional[list[str]] = None) -> None:
                     memory=None if memory is None else memory.snapshot(),
                     decision=None if decider is None else decider.snapshot())
                 base["body"] = "sim" if hasattr(bridge, "set_gait") else "real"
+                base["profile"] = prof.name
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(status_file, status.full_snapshot(
