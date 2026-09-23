@@ -187,9 +187,9 @@ function createHuman(gltf, holder, center) {
   root.updateMatrixWorld(true);
   return {
     root,
-    // A half turn also exchanges the character's screen-space left and right.
-    left: makeJointPose(rightHip),
-    right: makeJointPose(leftHip),
+    // Preserve the mannequin's anatomical sides after the half turn.
+    left: makeJointPose(leftHip),
+    right: makeJointPose(rightHip),
   };
 }
 
@@ -429,7 +429,11 @@ async function startViewer() {
     controls.minDistance = 1;
     controls.maxDistance = 40;
     controls.target.set(0, 0.2, 0);
-    viewer = { scene, camera, renderer, controls, config, left, right, human, holder };
+    // The Tripo exoskeleton's +Z group is named `right` in the asset config,
+    // but it lies beside the mannequin's anatomical left hip after rotation.
+    // Map the left sensor to both +Z parts, and the right sensor to both -Z parts.
+    viewer = { scene, camera, renderer, controls, config,
+      left: right, right: left, human, holder };
     viewport.appendChild(renderer.domElement);
     poster.hidden = true;
     loadButton.hidden = true;
