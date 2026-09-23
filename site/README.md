@@ -12,7 +12,7 @@
 python3 -m http.server 8788 --bind 127.0.0.1 --directory site
 ```
 
-在 Chrome 打开 `http://127.0.0.1:8788/`。不要直接用 `file://` 打开；浏览器模块和回放数据需要 HTTP。`--bind 127.0.0.1` 保证服务只在本机可访问。检查桌面、移动端导航、图片、3D 加载和回放按钮。
+在 Chrome 打开 `http://127.0.0.1:8788/`。不要直接用 `file://` 打开；浏览器模块和回放数据需要 HTTP。`--bind 127.0.0.1` 保证服务只在本机可访问。检查桌面、移动端导航、图片、3D 加载和回放按钮。总览页把演示入口提前，并在接近 3D 区域时自动加载外骨骼和白膜人体模型；加载失败仍可手动重试。
 
 ## 更新流程
 
@@ -36,7 +36,8 @@ python3 -m http.server 8788 --bind 127.0.0.1 --directory site
 
 ## 素材与隐私
 
-- `assets/hypershell-*.webp`：依据用户确认获官方许可的 Hypershell X Max S 图片优化生成；原图 URL 和许可说明见 `feat/auto-reconnect-GPT` 分支的 `dashboard/assets/README.md`。
+- 总览页只使用项目模型 `assets/exoskeleton.glb`、`assets/human-tripo-rigged.glb` 和从它们渲染的 `assets/renders/*.webp`；不引用官网产品宣传图片。透明宣传图可用 `blender -b --factory-startup --python tools/render_site_models.py` 在仓库根目录重新生成（需 Blender 与 `cwebp`）。
+- `assets/hypershell-*.webp` 是此前依据用户当时确认获许可的图片生成的历史文件，当前总览页不引用；原图 URL 和旧许可说明见 `feat/auto-reconnect-GPT` 分支的 `dashboard/assets/README.md`。
 - `assets/exoskeleton.glb`：同分支 Tripo 生成的视觉模型，不是工程 CAD 或安全模型。
 - `assets/human-tripo-rigged.glb`：Tripo 生成并自动绑骨的白膜人体，参考已确认获准使用的官网穿戴照片的比例，但没有真实面孔，也不是官方模型。网页去除贴图、调整透明度与尺寸，修正前后穿戴朝向及左右髋对应，再以实测双髋角度驱动腿部；详细来源、生成任务及限制见 `assets/HUMAN-LICENSE.md` 与 `../model-sources/README.md`。
 - `data/twin-replay.json`：真实设备桌面标定记录的抽样回放，并非当前在线数据。

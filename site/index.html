@@ -10,8 +10,8 @@
     />
     <title>Ghost / 外骨骼行动系统</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-    <link rel="preload" as="image" href="assets/hypershell-front.webp" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="preload" as="image" href="assets/renders/exoskeleton-angle.webp" />
+    <link rel="stylesheet" href="styles.css?v=overview-20260923-3" />
     <script type="importmap">
       {
         "imports": {
@@ -20,7 +20,7 @@
         }
       }
     </script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=overview-20260923"></script>
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
@@ -30,8 +30,9 @@
         ><span>GHOST<span class="wordmark-light"> / EXO</span></span></a
       >
       <nav aria-label="页面导航">
-        <a href="#twin">3D 外骨骼</a><a href="#system">行动系统</a
-        ><a href="#product">产品功能</a><a href="#open">开放项目</a>
+        <a href="#explore">演示入口</a><a href="#twin">3D 外骨骼</a
+        ><a href="#system">行动系统</a><a href="#product">产品功能</a
+        ><a href="#open">开放项目</a>
       </nav>
       <a
         class="header-cta"
@@ -50,68 +51,95 @@
             赛道
           </div>
           <h1>
-            让外骨骼<br />拥有<span
-              >自己的<br class="mobile-break" />行动系统。</span
-            >
+            让外骨骼<br /><span>学会判断，</span><br />安全行动。
           </h1>
           <p class="hero-lede">
-            从感知身体，到决定动作，再到记住每一次真实世界的反馈。Ghost 为
-            Hypershell X Max S 构建一套可观察、可解释、可接管的智能控制系统。
+            Ghost 将实时感知、策略判断与经验记忆接入 Hypershell X Max S。
+            从下方入口直接查看 3D、产品工作区和独立演示。
           </p>
           <div class="hero-actions">
-            <a class="button button-primary" href="#twin"
-              >探索 3D 外骨骼 <span aria-hidden="true">↘</span></a
+            <a class="button button-primary" href="#explore"
+              >查看演示入口 <span aria-hidden="true">↘</span></a
             ><a class="button button-ghost" href="#system"
-              >了解系统 <span aria-hidden="true">↗</span></a
+              >了解行动系统 <span aria-hidden="true">↗</span></a
             >
-          </div>
-          <div class="hero-facts">
-            <div>
-              <strong>180<span>Hz</span></strong
-              ><small>实测传感器数据流</small>
-            </div>
-            <div><strong>03</strong><small>协同工作的 Agent 层</small></div>
-            <div><strong>04</strong><small>独立开放的能力模块</small></div>
           </div>
         </div>
         <div
           class="hero-stage"
-          aria-label="Hypershell X Max S 外骨骼官方产品图"
+          aria-label="Ghost 项目外骨骼 3D 模型渲染图"
         >
-          <div class="hero-orbit orbit-a"></div>
-          <div class="hero-orbit orbit-b"></div>
-          <div class="hero-halo"></div>
           <img
-            src="assets/hypershell-front.webp"
-            alt="Hypershell X Max S 外骨骼正面"
-            width="1400"
-            height="1400"
+            src="assets/renders/exoskeleton-angle.webp"
+            alt="Ghost 项目外骨骼 3D 模型的斜侧视图"
+            width="1200"
+            height="1200"
           />
-          <div class="hero-stage-label">
-            <span class="label-line"></span> HYPERSHELL X MAX S
-            <span class="label-number">01 / 03</span>
-          </div>
-          <div class="hero-coordinate">22° 32′ N<br />114° 03′ E</div>
+          <div class="hero-stage-label">GHOST / 3D MODEL</div>
         </div>
-        <div class="hero-scroll">SCROLL TO EXPLORE <span>↓</span></div>
       </section>
 
-      <section class="intro-band">
-        <div class="section-shell intro-inner">
-          <span class="mono">01 / THE IDEA</span>
-          <p>
-            真正的智能，不止是给出一个动作。<br /><em
-              >它知道什么时候该行动，什么时候该停下。</em
-            >
-          </p>
-          <span class="asterisk" aria-hidden="true">✳</span>
+      <section class="explore-section" id="explore" aria-labelledby="explore-heading">
+        <div class="section-shell">
+          <div class="explore-heading">
+            <div>
+              <span class="section-kicker">01 / EXPLORE</span>
+              <h2 id="explore-heading">从这里开始看。</h2>
+            </div>
+            <p>选择一个入口。实时画面依赖设备连接；仿真和历史回放可以独立查看。</p>
+          </div>
+          <div class="explore-grid">
+            <a class="explore-link" href="http://localhost:8001/twin.html" target="_blank" rel="noopener noreferrer">
+              <span class="explore-index">01 / 3D</span><h3>数字孪生</h3>
+              <p>电脑仿真、桌面实测回放，以及设备连通时的实时姿态。</p><span class="explore-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a class="explore-link" href="http://127.0.0.1:8110/" target="_blank" rel="noopener noreferrer">
+              <span class="explore-index">02 / PRODUCT</span><h3>我的行走</h3>
+              <p>运动模式、行走档案、个人记忆、成长徽章与眼镜照片。</p><span class="explore-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a class="explore-link" href="http://127.0.0.1:8792/" target="_blank" rel="noopener noreferrer">
+              <span class="explore-index">03 / REFLEX</span><h3>果蝇逃逸回路</h3>
+              <p>使用连接组数据演示离线神经回路，不连接外骨骼。</p><span class="explore-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a class="explore-link" href="http://127.0.0.1:8000/" target="_blank" rel="noopener noreferrer">
+              <span class="explore-index">04 / DEVICE</span><h3>设备监视器</h3>
+              <p>查看真机服务状态与实时曲线；需要设备服务运行。</p><span class="explore-arrow" aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="object-section" aria-labelledby="object-heading">
+        <div class="section-shell">
+          <div class="object-heading">
+            <div>
+              <span class="section-kicker">02 / FORM & FUNCTION</span>
+              <h2 id="object-heading">从每个角度，<br /><span>看见行动的形状。</span></h2>
+            </div>
+            <p>从结构细节到贴身形态，近距离观察每一处设计。向下拖动模型，换个角度继续探索。</p>
+          </div>
+          <div class="object-grid">
+            <figure class="object-shot object-shot-back">
+              <img src="assets/renders/exoskeleton-front.webp" alt="Ghost 项目外骨骼模型的侧视角" width="1200" height="1200" loading="lazy" />
+              <figcaption><span>01 / EXOSKELETON</span><strong>外骨骼结构</strong></figcaption>
+            </figure>
+            <figure class="object-shot object-shot-side">
+              <img src="assets/renders/human-angle.webp" alt="Ghost 项目的无五官白膜人体 3D 模型" width="1200" height="1200" loading="lazy" />
+              <figcaption><span>02 / HUMAN FORM</span><strong>白膜人体</strong></figcaption>
+            </figure>
+            <a class="object-model" href="#twin">
+              <img src="assets/renders/exoskeleton-rear.webp" alt="Ghost 项目外骨骼模型的另一视角" width="1200" height="1200" loading="lazy" />
+              <span><small>03 / 3D MODEL</small><strong>旋转查看外骨骼与人体</strong></span>
+              <b aria-hidden="true">↗</b>
+            </a>
+          </div>
         </div>
       </section>
 
       <section class="twin-section section-shell" id="twin">
         <div class="section-heading">
           <div>
-            <span class="section-kicker">02 / DIGITAL TWIN</span>
+            <span class="section-kicker">03 / DIGITAL TWIN</span>
             <h2>从真实身体，<br /><span>进入数字空间。</span></h2>
           </div>
           <p>
@@ -139,7 +167,7 @@
               width="488"
               height="488"
             /><button class="load-model" id="load-model" type="button">
-              启动 3D 视图 <span>↗</span>
+              正在准备 3D 视图 <span>↗</span>
             </button>
             <p class="twin-error" id="twin-error" role="status" hidden></p>
           </div>
@@ -193,19 +221,20 @@
             </div>
           </div>
         </div>
-        <div class="twin-caption">
-          <span>01</span>
+        <p class="twin-summary">实时姿态来自设备；历史回放来自桌面标定记录。白膜屈膝是视觉估算。</p>
+        <details class="twin-caption">
+          <summary>查看模型与数据来源说明</summary>
           <p>
-            3D 外骨骼依据获准使用的 Hypershell 官方产品图制作；半透明白膜人体参考官方穿戴展示的比例，没有真实面孔，并与外骨骼的前后穿戴方向对齐。双侧绑腿下缘与白膜膝关节之间留出约两指的距离，腰部和腿部固定件贴近人体外形；这只是视觉位置，不代表真实穿戴尺寸。实时视图读取本机设备服务，以首次有效角度对齐模型，也可手动重新对齐；腰部传感器检测到转向时，模型可跟随转身。双髋角度驱动腿部，白膜的屈膝由髋角和角速度估算，设备没有测量膝角；持续交替摆动时显示状态，此状态不代表已测得脚步或行走距离。离线时停止更新姿态。历史数据来自真实设备的桌面标定记录。运动模式仅在真机来源、安全档和实时状态确认后手动开启；模型姿态本身不用于设备运动控制。
+            这里展示的是项目自制的外骨骼与白膜人体 3D 模型，外观为视觉近似，不是设备工程模型或真人扫描。双侧绑腿下缘与白膜膝关节之间留出约两指的距离，腰部和腿部固定件贴近人体外形；这只是视觉位置，不代表真实穿戴尺寸。实时视图读取本机设备服务，以首次有效角度对齐模型，也可手动重新对齐；腰部传感器检测到转向时，模型可跟随转身。双髋角度驱动腿部，白膜的屈膝由髋角和角速度估算，设备没有测量膝角；持续交替摆动时显示状态，此状态不代表已测得脚步或行走距离。离线时停止更新姿态。历史数据来自真实设备的桌面标定记录。运动模式仅在真机来源、安全档和实时状态确认后手动开启；模型姿态本身不用于设备运动控制。
           </p>
-        </div>
+        </details>
       </section>
 
       <section class="system-section" id="system">
         <div class="section-shell">
           <div class="section-heading light">
             <div>
-              <span class="section-kicker">03 / THE SYSTEM</span>
+              <span class="section-kicker">04 / THE SYSTEM</span>
               <h2>三层智能。<br /><span>一种行动。</span></h2>
             </div>
             <p>
@@ -276,7 +305,7 @@
       <section class="product-section section-shell" id="product">
         <div class="section-heading">
           <div>
-            <span class="section-kicker">04 / PRODUCT EXPERIENCE</span>
+            <span class="section-kicker">05 / PRODUCT EXPERIENCE</span>
             <h2>从控制，<br /><span>走向日常使用。</span></h2>
           </div>
           <p>
@@ -286,29 +315,6 @@
         <div class="product-grid">
           <article class="product-card product-large">
             <div class="product-number">01 / LIVE CONTROL</div>
-            <div class="product-graphic dashboard-graphic" aria-hidden="true">
-              <div class="dash-top">
-                <span>GHOST / CONTROL</span
-                ><span class="dash-online">● DEVICE</span>
-              </div>
-              <div class="dash-bars">
-                <span style="height: 32%"></span
-                ><span style="height: 44%"></span
-                ><span style="height: 39%"></span
-                ><span style="height: 58%"></span
-                ><span style="height: 62%"></span
-                ><span style="height: 50%"></span
-                ><span style="height: 75%"></span
-                ><span style="height: 72%"></span
-                ><span style="height: 88%"></span
-                ><span style="height: 73%"></span
-                ><span style="height: 93%"></span
-                ><span style="height: 78%"></span>
-              </div>
-              <div class="dash-footer">
-                <span>LEFT HIP / RIGHT HIP</span><span>180 Hz</span>
-              </div>
-            </div>
             <h3>实时连接与安全控制</h3>
             <p>
               串口自动发现与重连；设备就绪后恢复数据展示。助力、阻尼与保持策略始终经过斜坡、限幅和急停保护。
@@ -316,21 +322,11 @@
           </article>
           <article class="product-card">
             <div class="product-number">02 / MOVEMENT</div>
-            <div class="mini-graphic">
-              <span class="mode-symbol">↗</span>
-              <div class="mode-tracks"><i></i><i></i><i></i></div>
-            </div>
             <h3>运动模式</h3>
             <p>查看设备的实时角度与指令力矩。助力、锻炼预设由你手动选择，设备就绪后才可开始。</p>
           </article>
           <article class="product-card">
             <div class="product-number">03 / RECORDS</div>
-            <div class="mini-graphic records-graphic">
-              <span>左右 · 同行</span>
-              <div class="record-trace">
-                <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-              </div>
-            </div>
             <h3>行走档案</h3>
             <p>
               收录设备记录，回看有效活动时间、双侧幅度与指令做功估计。桌面调试与穿戴运动分别标识，重复记录不会重复累积。
@@ -338,17 +334,11 @@
           </article>
           <article class="product-card">
             <div class="product-number">04 / MEMORY</div>
-            <div class="mini-graphic memory-graphic">
-              <span>USER / PROFILE</span><strong>01</strong><small>↗</small>
-            </div>
             <h3>个人记忆</h3>
             <p>把偏好、使用感受和每次参数调整保存在本机。历史版本随时可查，个人档案可以导出，保存参数不会自动施力。</p>
           </article>
           <article class="product-card">
             <div class="product-number">05 / GROWTH</div>
-            <div class="mini-graphic badge-graphic">
-              <span>✳</span><span>✧</span><span>✳</span><span>✧</span>
-            </div>
             <h3>成长徽章</h3>
             <p>
               从第一步、三日同行，到一小时积累、左右同行。四枚徽章只依据完整真实穿戴活动计算，桌面、仿真与静止记录不计进度。
@@ -368,7 +358,7 @@
       <section class="hardware-section">
         <div class="section-shell hardware-inner">
           <div class="hardware-copy">
-            <span class="section-kicker">05 / BUILT FOR THE REAL WORLD</span>
+            <span class="section-kicker">06 / BUILT FOR THE REAL WORLD</span>
             <h2>真正的世界，<br /><span>不会按脚本运行。</span></h2>
             <p>
               串口会中断，传感器会失联，判断也可能不确定。因此系统保留设备状态、指令来源与安全边界，让每次行动都有迹可循。
@@ -380,18 +370,18 @@
           </div>
           <div class="hardware-photo">
             <img
-              src="assets/hypershell-side.webp"
-              alt="Hypershell X Max S 外骨骼侧面"
+              src="assets/renders/exoskeleton-rear.webp"
+              alt="Ghost 项目外骨骼 3D 模型的另一视角"
               loading="lazy"
-              width="1400"
-              height="1400"
-            /><span>HYPERSHELL X MAX S / SIDE VIEW</span>
+              width="1200"
+              height="1200"
+            /><span>GHOST / MODEL STUDY</span>
           </div>
         </div>
       </section>
 
       <section class="open-section section-shell" id="open">
-        <span class="section-kicker">06 / OPEN PROJECT</span>
+        <span class="section-kicker">07 / OPEN PROJECT</span>
         <div class="open-inner">
           <div>
             <h2>把能力拆开，<br /><span>让想法继续生长。</span></h2>
@@ -434,10 +424,7 @@
     <footer>
       <div class="section-shell footer-inner">
         <div class="footer-brand">GHOST<span> / EXO</span></div>
-        <p>
-          EvoTavern 深圳站 · 原生 Agent 赛道<br />设备图像经用户确认许可使用；外骨骼设备为
-          Hypershell X Max S。
-        </p>
+        <p>EvoTavern 深圳站 · 原生 Agent 赛道</p>
         <a href="#top">回到顶部 ↑</a>
       </div>
     </footer>

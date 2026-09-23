@@ -391,6 +391,7 @@ function resize() {
 }
 
 async function startViewer() {
+  if (viewer || loadButton.disabled) return;
   loadButton.disabled = true;
   loadButton.textContent = "正在载入 3D 视图…";
   errorEl.hidden = true;
@@ -477,6 +478,14 @@ async function startViewer() {
 }
 
 loadButton.addEventListener("click", startViewer);
+if ("IntersectionObserver" in window) {
+  const modelObserver = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) return;
+    modelObserver.disconnect();
+    startViewer();
+  }, { rootMargin: "250px 0px" });
+  modelObserver.observe(viewport);
+}
 liveButton.addEventListener("click", () => {
   mode = "live";
   playing = false;
