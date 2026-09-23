@@ -43,8 +43,11 @@ const applyBothLegs = document.getElementById("apply-both-legs");
 const bilateralAvailability = document.getElementById("bilateral-availability");
 const zeroButton = document.getElementById("control-zero");
 const estopButton = document.getElementById("control-estop");
-const controlConfirm = document.getElementById("control-confirm");
-const confirmLabel = document.getElementById("control-confirm-label");
+const controlProfile = document.getElementById("control-profile");
+const safetyDialog = document.getElementById("control-safety-dialog");
+const safetyMessage = document.getElementById("control-safety-message");
+const safetyCancel = document.getElementById("control-safety-cancel");
+const safetySend = document.getElementById("control-safety-send");
 const controlReason = document.getElementById("control-reason");
 const controlCurrent = document.getElementById("control-current");
 
@@ -60,6 +63,7 @@ let humanVisible = true;
 let liveRefreshScheduled = false;
 let turnEnabled = true;
 let confirmedProfile = null;
+let pendingControl = null;
 const yawFollower = new YawFollower();
 const gaitDetector = new GaitPatternDetector();
 const kneeFollower = new KneeFollower();
@@ -317,34 +321,31 @@ function updateMode() {
 
 function updateControls() {
   const profile = live.status?.profile;
-  const canConfirm = live.connected && live.status?.body === "real" &&
-    ["table", "wearing"].includes(profile) && live.status?.state === "ARMED" &&
-    !live.status?.legs_offline && !live.status?.tripped &&
-    Number.isFinite(live.status?.hz) && live.status.hz >= 50 &&
-    Number.isFinite(live.statusAgeMs) && live.statusAgeMs < 3000 &&
-    Number.isFinite(live.frameAgeMs) && live.frameAgeMs < 1000 && !!live.frame;
-  if (!canConfirm || (confirmedProfile && confirmedProfile !== profile)) {
+  const preflight = modeReadiness(live, profile);
+  const canControl = mode === "live" && preflight.ready;
+  if (!canControl || (confirmedProfile && confirmedProfile !== profile)) {
     confirmedProfile = null;
-    controlConfirm.checked = false;
   }
-  controlConfirm.disabled = !canConfirm;
-  confirmLabel.textContent = profile === "table"
-    ? "我确认设备放在桌面或支架上、无人穿戴（桌面档）"
-    : profile === "wearing"
-      ? "我确认当前有人穿戴，已按穿戴档完成检查并能立即急停"
-      : "等待设备报告安全档";
-  const ready = modeReadiness(live, confirmedProfile);
-  assistButton.disabled = resistButton.disabled = mode !== "live" || !ready.ready;
+  if (!canControl && safetyDialog.open) {
+    pendingControl = null;
+    safetyDialog.close();
+  }
+  controlProfile.textContent = live.connected && live.statusAgeMs < 3000
+    ? profile === "table" ? "桌面档 · 仅限设备未穿戴时测试"
+      : profile === "wearing" ? "穿戴档 · 首次发送前确认穿戴检查与急停"
+        : "等待设备报告安全档"
+    : "等待设备报告安全档";
+  assistButton.disabled = resistButton.disabled = !canControl;
   const bilateralSupported = live.status?.capabilities?.bilateral_modes === true;
   const splitSupported = live.status?.capabilities?.split_resist === true;
   legacySplitResist.hidden = !splitSupported || bilateralSupported;
-  splitResistButton.disabled = mode !== "live" || !ready.ready ||
+  splitResistButton.disabled = !canControl ||
     !splitSupported;
   for (const button of [applyLeftLeg, applyRightLeg, applyBothLegs])
-    button.disabled = mode !== "live" || !ready.ready || !bilateralSupported;
+    button.disabled = !canControl || !bilateralSupported;
   bilateralAvailability.textContent = !bilateralSupported
     ? "当前控制服务尚不支持左右独立助力与阻力"
-    : ready.ready ? "设备已就绪，请确认两侧选择后应用" : ready.reason;
+    : canControl ? "设备已就绪，请确认两侧选择后应用" : preflight.reason;
   zeroButton.disabled = estopButton.disabled = !live.connected;
   const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
   const active = live.status?.policy === "bilateral"
@@ -368,35 +369,62 @@ function updateControls() {
       : recent
         ? `运动建议：${names[advice.applied] || advice.applied} · ${advice.backend === "llm" ? "EvoMap" : "本地规则"}${advice.held_by === "safety" ? " · 安全限制" : ""}`
         : "运动建议：等待运动分析";
-  controlReason.textContent = mode === "live" ? ready.reason : "切换到实时数据后可操作";
+  controlReason.textContent = mode !== "live" ? "切换到实时数据后可操作"
+    : canControl && confirmedProfile !== profile
+      ? "首次操作时确认当前测试状态" : preflight.reason;
 }
 
-controlConfirm.addEventListener("change", () => {
-  confirmedProfile = controlConfirm.checked ? live.status?.profile : null;
-  updateControls();
+function runControlAction(buildCommand, successText = "请求已发送，等待设备状态确认") {
+  try {
+    if (mode !== "live") throw new Error("请先切换到实时数据");
+    const profile = live.status?.profile;
+    const preflight = modeReadiness(live, profile);
+    if (!preflight.ready) throw new Error(preflight.reason);
+    if (confirmedProfile !== profile) {
+      pendingControl = { profile, buildCommand, successText };
+      safetyMessage.textContent = profile === "table"
+        ? "当前是桌面档。请确认设备放在桌面或支架上、无人穿戴，且可以立即急停。"
+        : "当前是穿戴档。请确认已完成穿戴前检查、急停可达，并从低强度开始。";
+      safetyDialog.showModal();
+      return;
+    }
+    telemetry.send(buildCommand(modeReadiness(live, confirmedProfile)));
+    controlReason.textContent = successText;
+  } catch (error) { controlReason.textContent = error.message; }
+}
+
+safetyCancel.addEventListener("click", () => {
+  pendingControl = null;
+  safetyDialog.close();
+});
+safetyDialog.addEventListener("cancel", () => { pendingControl = null; });
+safetySend.addEventListener("click", () => {
+  const pending = pendingControl;
+  pendingControl = null;
+  safetyDialog.close();
+  if (!pending) return;
+  if (live.status?.profile !== pending.profile) {
+    controlReason.textContent = "安全档已变化，请重新选择运动模式";
+    return;
+  }
+  const preflight = modeReadiness(live, pending.profile);
+  if (!preflight.ready) {
+    controlReason.textContent = preflight.reason;
+    return;
+  }
+  confirmedProfile = pending.profile;
+  runControlAction(pending.buildCommand, pending.successText);
 });
 
-function sendMode(name) {
-  try {
-    const readiness = modeReadiness(live, confirmedProfile);
-    if (mode !== "live") throw new Error("请先切换到实时数据");
-    telemetry.send(modeCommand(name, readiness));
-    controlReason.textContent = "请求已发送，等待设备状态确认";
-  } catch (error) {
-    controlReason.textContent = error.message;
-  }
-}
-
-assistButton.addEventListener("click", () => sendMode("assist"));
-resistButton.addEventListener("click", () => sendMode("resist"));
+assistButton.addEventListener("click", () =>
+  runControlAction((readiness) => modeCommand("assist", readiness)));
+resistButton.addEventListener("click", () =>
+  runControlAction((readiness) => modeCommand("resist", readiness)));
 splitResistButton.addEventListener("click", () => {
-  try {
-    if (mode !== "live") throw new Error("请先切换到实时数据");
-    const command = splitResistCommand(Number(leftResistGain.value), Number(rightResistGain.value),
-      modeReadiness(live, confirmedProfile), live.status?.capabilities?.split_resist === true);
-    telemetry.send(command);
-    controlReason.textContent = "独立阻力请求已发送，等待设备状态确认";
-  } catch (error) { controlReason.textContent = error.message; }
+  runControlAction((readiness) => splitResistCommand(
+    Number(leftResistGain.value), Number(rightResistGain.value),
+    readiness, live.status?.capabilities?.split_resist === true),
+  "独立阻力请求已发送，等待设备状态确认");
 });
 
 function setLegGainOptions(modeSelect, gainSelect) {
@@ -424,19 +452,15 @@ for (const [modeSelect, gainSelect] of [[leftLegMode, leftLegGain], [rightLegMod
 }
 
 function applyLegSettings(side) {
-  try {
-    if (mode !== "live") throw new Error("请先切换到实时数据");
-    const readiness = modeReadiness(live, confirmedProfile);
+  runControlAction((readiness) => {
     const supported = live.status?.capabilities?.bilateral_modes === true;
     const left = legSetting(leftLegMode, leftLegGain);
     const right = legSetting(rightLegMode, rightLegGain);
-    const command = side === "both"
+    return side === "both"
       ? bilateralCommand(left, right, readiness, supported)
       : singleLegCommand(side, side === "l" ? left : right,
         live.status, readiness, supported);
-    telemetry.send(command);
-    controlReason.textContent = "双腿设置请求已发送，等待设备状态确认";
-  } catch (error) { controlReason.textContent = error.message; }
+  }, "双腿设置请求已发送，等待设备状态确认");
 }
 
 applyLeftLeg.addEventListener("click", () => applyLegSettings("l"));

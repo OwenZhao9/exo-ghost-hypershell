@@ -217,12 +217,19 @@
                 </div>
               </div>
             </div>
-            <label class="control-confirm"><input id="control-confirm" type="checkbox" disabled />
-              <span id="control-confirm-label">等待设备报告安全档</span></label>
+            <p class="control-profile" id="control-profile" role="status">等待设备报告安全档</p>
             <div class="control-footer"><p id="control-reason" role="status">等待设备连接</p>
               <button id="control-zero" type="button" disabled>松劲</button>
               <button id="control-estop" class="danger" type="button" disabled>急停</button>
             </div>
+            <dialog id="control-safety-dialog" class="control-safety-dialog" aria-labelledby="control-safety-title">
+              <h4 id="control-safety-title">确认测试状态</h4>
+              <p id="control-safety-message"></p>
+              <div class="control-safety-actions">
+                <button id="control-safety-cancel" type="button">取消</button>
+                <button id="control-safety-send" type="button">确认并发送</button>
+              </div>
+            </dialog>
           </div>
         </div>
         <div class="twin-caption">
