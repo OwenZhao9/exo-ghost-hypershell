@@ -4,6 +4,8 @@
 
 网页由 `index.html`、`styles.css`、`app.js`、`live.js`、`control.js` 和 `assets/`、`data/`、`vendor/` 组成，无构建步骤。3D 页可读取真机实时流、播放真实桌面记录，并在安全条件满足后手动请求动力辅助或健身阻力。
 
+3D 控制区下方的长篇模型与数据说明已从页面移除。素材授权、数据来源、视觉估算及真机验证边界留在本说明、`docs/FEATURES.md` 和 `model-sources/`；使用时必要的连接状态、安全档和控制反馈仍在页面显示。
+
 3D 页显示最近一条运动建议及来源。本地服务从 Git 忽略的 `data/product/evomap_gateway.key`、`EVOMAP_API_KEY_FILE` 指定的文件或 `EVOMAP_API_KEY` 环境变量读取 Gateway key；网页不会接收密钥。默认只建议；显式启动桌面档 `--autopilot` 后，模型选出的模式还须通过最新本地状态复核才可执行，且最多 0.5 N·m。穿戴档不能启动自动控制。没有 key 时使用本地规则。模型调用可能持续数秒，页面在设备状态仍新鲜时将最近建议保留 20 秒。
 
 ## 本地启动

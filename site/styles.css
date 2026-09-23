@@ -384,6 +384,7 @@ p {
   padding-top: 140px;
   padding-bottom: 150px;
 }
+.twin-section { padding-bottom: 80px; }
 .section-heading {
   display: flex;
   justify-content: space-between;
@@ -644,23 +645,6 @@ p {
 .control-footer p { flex: 1; margin: 0; }
 .twin-control .control-footer button { background: transparent; color: #e8eee3; border-color: #64715c; }
 .twin-control .control-footer button.danger { color: #ffaaa0; border-color: #c15e54; }
-.twin-caption {
-  display: flex;
-  gap: 25px;
-  margin-top: 24px;
-  color: #7d8a7a;
-  font-size: 12px;
-  line-height: 1.8;
-  max-width: 800px;
-}
-.twin-caption span {
-  font-family: "DM Mono", monospace;
-  color: var(--accent);
-}
-.twin-caption a {
-  color: #b8d6a1;
-  text-underline-offset: 3px;
-}
 .system-section {
   background: #e8e9df;
   color: #1b251b;
@@ -1217,6 +1201,7 @@ footer {
     padding-top: 80px;
     padding-bottom: 85px;
   }
+  .twin-section { padding-bottom: 55px; }
   .section-heading {
     display: block;
     margin-bottom: 35px;
@@ -1276,9 +1261,6 @@ footer {
   .twin-control-card p { min-height: 0; }
   .bilateral-legs { grid-template-columns: 1fr; }
   .control-footer p { flex-basis: 100%; }
-  .twin-caption {
-    font-size: 10px;
-  }
   .system-section {
     padding: 80px 0;
   }
