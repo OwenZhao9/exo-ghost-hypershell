@@ -42,16 +42,16 @@
 | 行走档案 | `product_features/records/` | 收录已有设备 CSV；仿真记录不进入产品档案。真机桌面、穿戴与来源未确认的记录分别标识，输出有效记录/活动时间、双侧幅度及指令做功估计。不能推断真实肌力、省力比例。 |
 | 个人记忆 | `product_features/memory/` | 保存偏好、参数版本并导出 JSON。 |
 | 成长徽章 | `product_features/growth/` | 只基于完整真实穿戴记录；桌面、仿真、重复、静止或急停记录不计进度。 |
-| 眼镜看一看（试验） | `product_features/guide/` | 从指定的 Luma 眼镜照片目录只读列出 JPEG；用户点击单张照片后才请求 EvoMap Gateway 描述。显示文件时间，旧照片明确标识为历史照片。当前无 Gateway Key 和真实图片透传验收，不提供实际引路或外骨骼动作。 |
+| 眼镜看一看（试验） | `product_features/guide/` | 从指定的 Luma 眼镜照片目录只读列出 JPEG；用户点击单张照片后才请求 EvoMap Gateway 描述。显示文件时间，旧照片明确标识为历史照片。已用获准发送的历史眼镜照片完成网关图像透传与文字描述验收；新鲜采图尚待本机蓝牙授权。不提供实际引路或外骨骼动作。 |
 
 **产品界面**：`dashboard/product/style.css`、`app.js` 和 `product_features/modes/view.js` 采用参考 DJI Fly 官网的浅色工作区、常驻功能导航、设备正面图、显眼的当前数据状态、紧凑的真实穿戴记录统计及分区清晰的模式/曲线区域。首页设备图复用项目已获准使用的 `site/assets/hypershell-front.webp`，不作为设备状态。首页状态仅使用设备服务当前消息，来源未知时明确标识；曲线无新帧时仍为空，不绘制示例数据。样式更新没有修改控制条件、设备命令或历史记录计算。设计参考与取舍见 `docs/product-ui-reference.md`。
 
-眼镜照片描述已确定使用 EvoMap Gateway 的 `evomap-gemini-3.1-pro-preview`，接口封装与本机页面已完成；真实调用仍需创建绑定该模型的 Gateway Key，并用获准发送的照片验证。眼镜音频输出、连续环境感知和实际引路尚未实现。跨设备策略迁移、康复与保险结论也未实现。
+眼镜照片描述使用 EvoMap Gateway 的 `evomap-gemini-3.1-pro-preview`。已创建仅绑定该模型、30 天到期的 Key，并验证历史眼镜 JPEG 的图片输入和文字输出。眼镜音频输出、连续环境感知和实际引路尚未实现。跨设备策略迁移、康复与保险结论也未实现。
 
 ### 本机入口与兼容性
 
 - **入口**：产品工作目录执行 `uv run python -m product.server`。集成分支默认端口 8110，各功能分支自动使用 8100–8105；数据默认存储在各自目录的 `data/product/product.db`。
-- **眼镜照片入口**：使用 `--glasses-dir /Users/owenzhao/eyeGalss/shots` 只读列出此前 Luma 眼镜采集的 JPEG。环境变量 `EVOMAP_GATEWAY_API_KEY` 仅保存在本机；点击“描述这张照片”才会将所选照片发送给 EvoMap。照片、Key 和描述结果不写入展示网页或 Git。
+- **眼镜照片入口**：使用 `--glasses-dir /Users/owenzhao/eyeGalss/shots` 只读列出 Luma 眼镜采集的 JPEG。Gateway Key 保存在本机 Git 忽略的 `data/product/evomap_gateway.key`（0600）；启动时执行 `EVOMAP_GATEWAY_API_KEY="$(cat data/product/evomap_gateway.key)" uv run python -m product.server --glasses-dir /Users/owenzhao/eyeGalss/shots`，按需附加既有 `--recordings-dir` 和 `--device-ws` 参数。点击“描述这张照片”才会将所选照片发送给 EvoMap。照片、Key 和描述结果不写入展示网页或 Git。
 - **独立运行**：产品服务不打开串口、不启动仿真。通过 `--recordings-dir` 只读收录已有设备记录；指定 `--device-ws` 后订阅既有控制服务。默认不发送控制命令。
 - **控制条件**：启用 `--control` 后，设备必须明确报告 `body=real`、状态 `ARMED`、数据流至少 50 Hz，且传感器与状态消息保持新鲜。断线、静默期、急停或来源不明时拒绝开始运动；松劲、急停保留独立停止路径。
 - **旧服务兼容**：旧控制服务仍可供产品页面显示曲线。缺少 `body` 标记时，产品无法确认真机来源，因此不开放运动操作。切换控制服务需先释放真实串口，再从集成版本启动；不能同时运行两个控制进程。
@@ -66,11 +66,11 @@
 
 ### 实际验证与未完成项
 
-- 集成分支已运行 `uv run pytest tests/ -q`：134 项通过，覆盖既有控制安全基准、串口恢复、档案来源与计算、数据库隔离、持久化、去重与徽章资格。
+- 集成分支已运行 `uv run pytest tests/ -q`：139 项通过，覆盖既有控制安全基准、串口恢复、档案来源与计算、数据库隔离、持久化、去重、徽章资格及眼镜网关请求边界。
 - `node --test tests/product-device.test.mjs`：3 项通过，覆盖启动不发命令、过期/仿真/来源不明/只读连接拒绝施力、参数边界及停止路径。
 - Chrome 已验证产品页面导航、现有真机数据接收、真实桌面记录收录、产品服务重启后记录保留、桌面记录不解锁徽章。测试使用的私人记录未纳入展示页或 Git。
 - Chrome 已检查新版总览、运动模式、档案、偏好和徽章页面；390px 手机视口下页面没有水平溢出。页面仍使用原有实时数据链路，样式调整没有通过产品页下发施力指令。
-- 新产品页面的施力操作尚未现场验证；当前展示服务为只读。眼镜照片描述已通过请求封装与安全边界测试，尚未配置真实 Gateway Key，也未验证 EvoMap 图片透传或眼镜音频；人体肌力、疲劳、省力比例、里程和爬升没有已验证实现。
+- 新产品页面的施力操作尚未现场验证；当前展示服务为只读。眼镜照片描述已通过请求封装、安全边界和一次真实网关图像输入测试；眼镜新鲜采图与音频尚未验收。EvoMap 网关偶发模型拥堵或超时，页面会显示错误，不把失败输出用于引路。人体肌力、疲劳、省力比例、里程和爬升没有已验证实现。
 
 ## 本地展示网页
 

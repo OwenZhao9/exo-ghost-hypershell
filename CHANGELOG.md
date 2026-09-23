@@ -7,7 +7,7 @@
 ### 眼镜照片描述试验
 
 - 找回本机 `/Users/owenzhao/eyeGalss/luma-core` 的 Luma 眼镜采图代码；保持原工作区未提交改动不变。`feat/glasses-guide-GPT` 新增只读照片列表、手动选图和 EvoMap Gateway 视觉请求封装，合入产品工作区。Gateway Key 从 `EVOMAP_GATEWAY_API_KEY` 读取，不进入前端、日志或 Git。旧照片标识历史，不推断道路可通行，不向外骨骼发送命令。
-- 产品启动可指定 `--glasses-dir`；未配置 Key 时页面只显示照片列表，真实图像发送需人手点击。`site/` 仅说明开发中范围，不展示私人照片。兼容现有只读控制服务；无需修改或重启占用串口的进程。验证：接口单元测试、现有产品测试、Chrome 本地页面检查。真实 EvoMap 图片透传、眼镜音频及实际引路待验收。
+- 产品启动可指定 `--glasses-dir`；真实图像发送需人手点击。已在 EvoMap 创建仅绑定 Gemini 3.1 Pro、30 天到期的 Gateway Key，保存于 Git 忽略的本机 `data/product/evomap_gateway.key`（0600）；产品服务启动时读入环境变量。用用户允许的历史眼镜 JPEG 验证图片透传和中文描述。初次模型服务繁忙返回 429；较低的回复上限又导致半句输出，因此改用低思考等级与 2048 token 上限，复验得到完整描述。`site/` 不展示私人照片。纯拍照命令尚待当前 Mac 的蓝牙授权与新照片验收，眼镜音频和实际引路未实现。
 
 ### 改为本地展示
 
