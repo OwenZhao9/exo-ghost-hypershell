@@ -22,7 +22,7 @@ export async function mount(root, {api, config, device, ui}) {
   live.classList.add('live-panel'); live.append(state);
   const plots = [];
   for (const [title, indices, unit, range] of [['髋关节角度', [0, 1], '°', 120], ['下发力矩', [4, 5], 'Nm', 2]]) {
-    const c = ui.el('canvas'); c.setAttribute('aria-label', `${title}实时曲线：左腿绿色，右腿橙色`);
+    const c = ui.el('canvas'); c.setAttribute('aria-label', `${title}实时曲线：左腿蓝色，右腿橙色`);
     const plot = ui.el('div', null, 'plot');
     plot.append(ui.el('h3', `${title} · ${unit}`), c); live.append(plot); plots.push({c, indices, range});
   }
@@ -35,7 +35,7 @@ export async function mount(root, {api, config, device, ui}) {
       device.status?.body !== 'real' ? '控制服务尚未确认真机来源，请更新控制服务后操作。' :
       !device.ready ? '设备正在等待或处于急停状态，请在控制台检查后再开始。' : '设备已就绪，可以开始运动。';
     const names = {zero: '松劲', assist: '助力', resist: '锻炼'};
-    state.textContent = device.fresh ? `当前模式：${names[device.status?.policy] || device.status?.policy || '—'} · 左腿绿色 / 右腿橙色` : '等待设备数据';
+    state.textContent = device.fresh ? `当前模式：${names[device.status?.policy] || device.status?.policy || '—'} · 左腿蓝色 / 右腿橙色` : '等待设备数据';
   };
   let frame, lastPaint = 0, disposed = false;
   function paint(now) {
@@ -47,11 +47,11 @@ export async function mount(root, {api, config, device, ui}) {
         if (c.width !== Math.round(width * scale)) c.width = Math.round(width * scale);
         if (c.height !== Math.round(height * scale)) c.height = Math.round(height * scale);
         const g = c.getContext('2d'); g.setTransform(scale, 0, 0, scale, 0, 0); g.clearRect(0, 0, width, height);
-        g.strokeStyle = '#35463a'; g.beginPath(); g.moveTo(0, height / 2); g.lineTo(width, height / 2); g.stroke();
-        if (!values.length) { g.fillStyle = '#a5b3a5'; g.font = '14px sans-serif'; g.fillText('等待实时数据', 12, 30); continue; }
+        g.strokeStyle = '#dfe6eb'; g.beginPath(); g.moveTo(0, height / 2); g.lineTo(width, height / 2); g.stroke();
+        if (!values.length) { g.fillStyle = '#61717c'; g.font = '14px sans-serif'; g.fillText('等待实时数据', 12, 30); continue; }
         const end = values.at(-1).t, begin = end - 10;
         indices.forEach((index, line) => {
-          g.strokeStyle = ['#d5f46e', '#ffab78'][line]; g.lineWidth = 2; g.beginPath(); let previous = null;
+          g.strokeStyle = ['#206eae', '#d17845'][line]; g.lineWidth = 2; g.beginPath(); let previous = null;
           for (const s of values) {
             if (s.t < begin) continue;
             const x = (s.t - begin) / 10 * width, y = height / 2 - s.v[index] / range * (height / 2 - 10);

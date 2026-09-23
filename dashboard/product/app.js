@@ -40,7 +40,13 @@ async function render() {
       const statusMain = ui.el('div'), statusTitle = ui.el('strong'), statusDetail = ui.el('p');
       statusMain.append(ui.el('span', '当前数据', 'home-status-label'), statusTitle, statusDetail);
       status.append(statusMain, ui.el('p', config.control_enabled ? '运动操作需要真机就绪，并由你手动开始。' : '当前为只读查看。运动操作请使用控制台。', 'status-detail'));
-      hero.append(intro, status); root.append(hero);
+      intro.append(status);
+      const visual = ui.el('div', null, 'home-visual');
+      const productImage = ui.el('img');
+      productImage.src = '/assets/hypershell-front.webp';
+      productImage.alt = 'Hypershell X Max S 外骨骼正面';
+      visual.append(productImage);
+      hero.append(intro, visual); root.append(hero);
       const updateHomeStatus = () => {
         statusTitle.textContent = device.fresh ? '实时数据已接收' : '等待设备数据';
         const body = device.status?.body;

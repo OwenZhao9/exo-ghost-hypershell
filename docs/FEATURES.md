@@ -43,7 +43,7 @@
 | 个人记忆 | `product_features/memory/` | 保存偏好、参数版本并导出 JSON。 |
 | 成长徽章 | `product_features/growth/` | 只基于完整真实穿戴记录；桌面、仿真、重复、静止或急停记录不计进度。 |
 
-**产品界面**：`dashboard/product/style.css`、`app.js` 和 `product_features/modes/view.js` 采用深色工作区、常驻功能导航、显眼的当前数据状态、紧凑的真实穿戴记录统计及分区清晰的模式/曲线区域。首页状态仅使用设备服务当前消息，来源未知时明确标识；曲线无新帧时仍为空，不绘制示例数据。样式更新没有修改控制条件、设备命令或历史记录计算。设计参考与取舍见 `docs/product-ui-reference.md`。
+**产品界面**：`dashboard/product/style.css`、`app.js` 和 `product_features/modes/view.js` 采用参考 DJI Fly 官网的浅色工作区、常驻功能导航、设备正面图、显眼的当前数据状态、紧凑的真实穿戴记录统计及分区清晰的模式/曲线区域。首页设备图复用项目已获准使用的 `site/assets/hypershell-front.webp`，不作为设备状态。首页状态仅使用设备服务当前消息，来源未知时明确标识；曲线无新帧时仍为空，不绘制示例数据。样式更新没有修改控制条件、设备命令或历史记录计算。设计参考与取舍见 `docs/product-ui-reference.md`。
 
 眼镜引路需要用户指定视觉 API 并完成真机验证，目前不能列为已实现。跨设备策略迁移、康复与保险结论也未实现。
 

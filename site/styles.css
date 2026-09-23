@@ -715,8 +715,8 @@ p {
   flex: 1;
   min-height: 430px;
   margin-top: 35px;
-  background: #0d130e;
-  border: 1px solid #2e3d2d;
+  background: #f7f9fb;
+  border: 1px solid #dbe3e9;
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr);
   overflow: hidden;
@@ -726,9 +726,9 @@ p {
   flex-direction: column;
   gap: 18px;
   padding: 20px 10px;
-  border-right: 1px solid #2e3d2d;
-  background: #131b15;
-  color: #9fae9d;
+  border-right: 1px solid #dbe3e9;
+  background: #fff;
+  color: #60717b;
   font-size: 9px;
 }
 .dash-mini-mark {
@@ -736,8 +736,8 @@ p {
   place-items: center;
   width: 22px;
   height: 22px;
-  border: 1px solid #d2f55a;
-  color: #d2f55a;
+  border: 1px solid #172127;
+  color: #172127;
   font-size: 16px;
   font-weight: 800;
 }
@@ -754,19 +754,34 @@ p {
   font-family: "DM Mono", monospace;
   font-size: 8px;
   letter-spacing: 0.1em;
-  color: #71866d;
+  color: #69808d;
+}
+.dash-mini-hero {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+.dash-mini-hero > div {
+  min-width: 0;
+  flex: 1;
+}
+.dash-mini-hero img {
+  width: 43%;
+  max-height: 225px;
+  object-fit: contain;
 }
 .dash-mini-main strong {
-  margin-top: 54px;
-  color: #eff5e8;
-  font-size: clamp(23px, 2.5vw, 40px);
+  display: block;
+  color: #172127;
+  font-size: clamp(20px, 2.2vw, 36px);
   line-height: 1.2;
   letter-spacing: -0.07em;
 }
 .dash-mini-main p {
   max-width: 250px;
   margin-top: 13px;
-  color: #a7b5a7;
+  color: #60717b;
   font-size: 10px;
   line-height: 1.6;
 }
@@ -776,13 +791,13 @@ p {
   gap: 12px;
   margin-top: auto;
   padding: 12px;
-  border: 1px solid #475d42;
-  background: #1e3022;
-  color: #d2f55a;
+  border: 1px solid #dbe3e9;
+  background: #fff;
+  color: #176ab8;
   font-size: 9px;
 }
 .dash-mini-status span {
-  color: #9fae9d;
+  color: #60717b;
 }
 .dash-mini-links {
   display: flex;
@@ -792,8 +807,8 @@ p {
 .dash-mini-links span {
   flex: 1;
   padding: 10px;
-  border: 1px solid #3c4d3b;
-  color: #d2f55a;
+  border: 1px solid #c5d9e9;
+  color: #176ab8;
   font-size: 9px;
 }
 .mini-graphic {
