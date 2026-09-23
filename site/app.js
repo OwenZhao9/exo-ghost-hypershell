@@ -26,6 +26,7 @@ const rightTorqueEl = document.getElementById("right-torque");
 const rateEl = document.getElementById("frame-rate");
 const gaitEl = document.getElementById("gait-state");
 const assistButton = document.getElementById("start-assist");
+const aiAdvice = document.getElementById("ai-advice");
 const resistButton = document.getElementById("start-resist");
 const zeroButton = document.getElementById("control-zero");
 const estopButton = document.getElementById("control-estop");
@@ -321,6 +322,16 @@ function updateControls() {
   const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
   controlCurrent.textContent = live.connected && live.statusAgeMs < 3000 && live.status?.policy
     ? `当前模式：${names[live.status.policy] || live.status.policy}` : "当前模式：等待设备";
+  const advice = live.status?.decision?.last;
+  const recent = Number.isFinite(advice?.t) && Date.now() - advice.t * 1000 < 10000;
+  const freshStatus = live.connected && live.statusAgeMs < 3000;
+  aiAdvice.textContent = !freshStatus
+    ? "运动建议：等待实时数据"
+    : live.status?.state !== "ARMED" || live.status?.legs_offline || live.status?.tripped
+      ? "运动建议：当前仅可松劲"
+      : recent
+        ? `运动建议：${names[advice.applied] || advice.applied} · ${advice.backend === "llm" ? "EvoMap" : "本地规则"}${advice.held_by === "safety" ? " · 安全限制" : ""}`
+        : "运动建议：等待运动分析";
   controlReason.textContent = mode === "live" ? ready.reason : "切换到实时数据后可操作";
 }
 

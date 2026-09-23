@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 
 import pytest
-from jev_decide import Decider
+from jev_decide import Choice, Decider, Score
 
 from agent.decide import GhostDecider
 from agent.features import extract
@@ -161,8 +161,8 @@ def test_low_confidence_keeps_the_current_policy_and_says_why():
     assert d.applied == "resist" and d.held_by == "gate"
 
 
-def test_anti_flap_hold_is_reported_separately_from_the_gate():
-    """刚换过策略就想再换，要说清是防抖拦的，不是置信度不够。"""
+def test_zero_preempts_anti_flap_hold():
+    """回到 zero 不受防抖期阻拦。"""
     g = fresh(min_hold_s=60.0, autopilot=True)
     for s in frames("walk"):
         g.feed(s)
@@ -172,8 +172,91 @@ def test_anti_flap_hold_is_reported_separately_from_the_gate():
     for s in frames(None):
         g.feed(s)
     second = g.tick(101.0, current_policy="assist", armed=True, tripped=None, legs_offline=False)
-    assert second.want == "zero" and second.applied == "assist"
-    assert second.held_by == "hold"                 # 防抖，不是门控
+    assert second.want == "zero" and second.applied == "zero"
+    assert second.held_by == ""
+
+
+def test_evomap_model_advice_is_bounded_by_local_gait_evidence(monkeypatch):
+    g = fresh(backend="llm", api_key="sk-evomap-test",
+              base_url="https://api.evomap.ai/v1",
+              model="evomap-gemini-3.1-pro-preview")
+    assert g.decider._backends["llm"].endpoint == "https://api.evomap.ai/v1/chat/completions"
+    assert g.decider._backends["llm"].model == "evomap-gemini-3.1-pro-preview"
+    monkeypatch.setattr(g.decider, "choice", lambda *a, **kw: Choice(
+        value="assist", probs={"zero": 0.01, "resist": 0.01, "assist": 0.98},
+        confidence=0.95, latency_ms=1, backend="llm"))
+    monkeypatch.setattr(g.decider, "score", lambda *a, **kw: Score(
+        value=0.30, lo=0, hi=0.30, confidence=0.95, latency_ms=1, backend="llm"))
+    for s in frames("walk"):
+        g.feed(s)
+    walking = g.tick(100.0, current_policy="zero", armed=True,
+                     tripped=None, legs_offline=False)
+    assert walking.applied == "assist"
+    assert 0 < walking.gain <= gain_rules(state_for("walk"))
+    assert walking.autopilot is False
+
+    g.window.clear()
+    for s in frames(None):
+        g.feed(s)
+    standing = g.tick(101.0, current_policy="assist", armed=True,
+                      tripped=None, legs_offline=False)
+    assert standing.want == "assist"
+    assert standing.applied == "zero" and standing.gain == 0
+    assert standing.held_by == "safety"
+
+    offline = g.tick(102.0, current_policy="assist", armed=True,
+                     tripped=None, legs_offline=True)
+    assert offline.applied == "zero" and offline.gain == 0
+
+
+def test_evomap_gateway_request_uses_bound_model_and_aggregate_state(monkeypatch):
+    import json
+    from jev_decide._backends import llm
+
+    sent = []
+
+    def fake_post(url, payload, *, headers, timeout_s):
+        sent.append((url, payload, headers))
+        state = json.loads(payload["messages"][1]["content"])["state"]
+        assert "cadence_hz" in state and "antiphase" in state
+        assert "ldeg" not in state and "serial" not in state
+        schema = payload["response_format"]["json_schema"]["name"]
+        if schema == "jev_decide_choice":
+            answer = {"choice": "assist",
+                      "probabilities": {"zero": 0.01, "resist": 0.01, "assist": 0.98}}
+        else:
+            answer = {"probabilities": {"0": 0.01, "1": 0.01, "2": 0.01,
+                                         "3": 0.01, "4": 0.96}}
+        return {"choices": [{"message": {"content": json.dumps(answer)}}]}
+
+    monkeypatch.setattr(llm, "post_json", fake_post)
+    g = fresh(backend="llm", api_key="sk-evomap-test",
+              base_url="https://api.evomap.ai/v1",
+              model="evomap-gemini-3.1-pro-preview")
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.backend == "llm" and d.applied == "assist" and not d.autopilot
+    assert len(sent) == 2
+    assert all(url == "https://api.evomap.ai/v1/chat/completions" for url, _, _ in sent)
+    assert all(payload["model"] == "evomap-gemini-3.1-pro-preview" for _, payload, _ in sent)
+    assert all(headers["Authorization"] == "Bearer sk-evomap-test" for _, _, headers in sent)
+
+
+def test_evomap_is_not_called_when_sensor_state_is_blocked(monkeypatch):
+    g = fresh(backend="llm", api_key="sk-evomap-test",
+              base_url="https://api.evomap.ai/v1",
+              model="evomap-gemini-3.1-pro-preview")
+    def unexpected(*args, **kwargs):
+        raise AssertionError("blocked state must not call the model")
+    monkeypatch.setattr(g.decider, "choice", unexpected)
+    monkeypatch.setattr(g.decider, "score", unexpected)
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="assist", armed=True,
+               tripped="operator estop", legs_offline=False)
+    assert d.applied == "zero" and d.gain == 0 and d.held_by == "safety"
 
 
 def test_tick_respects_its_period():

@@ -12,7 +12,28 @@ import pytest
 import control.policies as P
 from control.safety import PROFILES
 from runtime import commands, events, status
+from runtime.service import main
 from runtime.session import Session
+
+
+def test_unsafe_keepalive_is_rejected_before_opening_serial():
+    with pytest.raises(SystemExit) as exc:
+        main(["--keepalive", "60", "--no-web", "--body", "real"])
+    assert exc.value.code == 2
+
+
+def test_evomap_gateway_never_accepts_hub_key(monkeypatch):
+    monkeypatch.setenv("EVOMAP_API_KEY", "ek_not-a-gateway-key")
+    with pytest.raises(SystemExit) as exc:
+        main(["--no-web", "--body", "real"])
+    assert exc.value.code == 2
+
+
+def test_evomap_gateway_disallows_autopilot_before_opening_serial(monkeypatch):
+    monkeypatch.setenv("EVOMAP_API_KEY", "sk-evomap-test")
+    with pytest.raises(SystemExit) as exc:
+        main(["--autopilot", "--no-web", "--body", "real"])
+    assert exc.value.code == 2
 
 
 # ---------- 事件翻译 ----------

@@ -612,6 +612,7 @@ p {
 }
 .twin-control-heading h3 { margin: 7px 0 20px; font-size: 24px; }
 .twin-control-heading > span, .control-footer p { color: #a9b6a7; font-size: 12px; }
+#ai-advice { margin: 0 0 16px; color: #d6e6cf; font-size: 13px; line-height: 1.5; }
 .twin-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .twin-control-card { border: 1px solid #ffffff2b; padding: 20px; background: #ffffff08; }
 .twin-control-card > span { color: var(--accent); font: 11px "DM Mono", monospace; }

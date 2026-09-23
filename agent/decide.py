@@ -9,7 +9,8 @@
 
 分工：
   实时线程   只调 `feed(s)`，就是往环形窗口里 append 一帧，O(1)
-  主循环     每隔 `period_s` 调一次 `tick()`，在这里做特征提取和决策
+  工作线程   每隔 `period_s` 调一次 `tick()`，在这里做特征提取和决策；
+             主循环保持可处理松劲与急停
   自动驾驶   默认**关闭**：Ghost 只给建议，人来决定采不采纳。
              `--autopilot` 打开后才会真的改策略，且仍然走 runtime.commands
              那条路，所有既有的安全限制（穿戴档禁令、急停锁存）原样生效。
@@ -26,7 +27,7 @@ from jev_decide import Choice, Decider, Score
 from bridge.protocol import Sample
 
 from .features import FEATURE_LABELS, extract
-from .policy_rules import GAIN_MAX, OPTIONS, explain, gain_rules, policy_weights
+from .policy_rules import GAIN_MAX, OPTIONS, blocked, explain, gain_rules, gait, policy_weights
 
 __all__ = ["Decision", "GhostDecider"]
 
@@ -71,6 +72,7 @@ class GhostDecider:
                  period_s: float = 2.0, min_confidence: float = 0.55,
                  min_hold_s: float = 6.0, autopilot: bool = False,
                  backend: str = "auto", api_key: Optional[str] = None,
+                 base_url: Optional[str] = None, model: Optional[str] = None,
                  timeout_s: float = 1.0,
                  on_decision: Optional[Callable[[Decision], None]] = None) -> None:
         self.window: deque[Sample] = deque(maxlen=int(window_s * stream_hz))
@@ -79,10 +81,11 @@ class GhostDecider:
         self.min_hold_s = min_hold_s        # 两次换策略之间至少隔这么久，防抖
         self.autopilot = autopilot
         self.on_decision = on_decision
-        self.decider = Decider(backend, api_key=api_key, timeout_s=timeout_s)
+        self.decider = Decider(backend, api_key=api_key, base_url=base_url,
+                               model=model, timeout_s=timeout_s)
         self.last: Optional[Decision] = None
         self.n_decisions = 0
-        self.n_held = 0                     # 被置信度门控拦下来几次
+        self.n_held = 0                     # 被置信度、防抖或本地安全规则拦下来几次
         self.n_applied = 0                  # 自动驾驶真正下发几次
         self._last_tick = 0.0
         self._last_switch = 0.0
@@ -98,28 +101,44 @@ class GhostDecider:
 
     def tick(self, now: float, *, current_policy: str, armed: bool,
              tripped: Optional[str], legs_offline: bool) -> Optional[Decision]:
-        """做一次决策。没到点就返回 None。本方法会阻塞（最长 2×timeout_s），
-        所以只能在主循环里调，不准进串口读线程。"""
+        """做一次决策。没到点就返回 None。本方法会阻塞，
+        所以只能在工作线程里调，不准进串口读线程或命令主循环。"""
         if not self.due(now):
             return None
         self._last_tick = now
 
-        state = extract(list(self.window))
+        # deque.copy() 在 C 层取得快照，避免串口线程 append 时迭代器报错。
+        state = extract(list(self.window.copy()))
         state.update(armed=bool(armed), tripped=tripped or "",
                      legs_offline=bool(legs_offline), current=current_policy)
 
-        c: Choice = self.decider.choice(state, QUESTION, OPTIONS, rules=policy_weights)
-        g: Score = self.decider.score(state, RUBRIC, 0.0, GAIN_MAX, rules=gain_rules)
+        if blocked(state):
+            # 无效数据没有询问远端的必要，也不能让模型覆盖 zero。
+            c = Choice(value="zero", probs={"zero": 1.0, "resist": 0.0, "assist": 0.0},
+                       confidence=1.0, latency_ms=0.0, backend="rules")
+            g = Score(value=0.0, lo=0.0, hi=GAIN_MAX, confidence=1.0,
+                      latency_ms=0.0, backend="rules")
+        else:
+            c = self.decider.choice(state, QUESTION, OPTIONS, rules=policy_weights)
+            g = self.decider.score(state, RUBRIC, 0.0, GAIN_MAX, rules=gain_rules)
         applied = Decider.gate(c, min_confidence=self.min_confidence,
                                on_low="keep", current=current_policy)
         held_by = "gate" if applied != c.value else ""
         # 防抖：刚换过策略就先稳一会儿，别让 Ghost 在两个策略之间来回横跳
-        if applied != current_policy and now - self._last_switch < self.min_hold_s:
+        if (applied != current_policy and applied != "zero"
+                and now - self._last_switch < self.min_hold_s):
             applied = current_policy
             held_by = "hold"
 
+        # 模型的概率不是硬件安全依据。数据不足、急停和掉线必须越过
+        # 置信度门控与防抖，直接建议 zero；助力还需本地步态证据。
+        if blocked(state) or (applied == "assist" and gait(state) < 0.75):
+            applied = "zero"
+            held_by = "safety"
+        gain = min(max(0.0, g.value), gain_rules(state)) if applied == "assist" else 0.0
+
         d = Decision(t=now, want=c.value, applied=applied, confidence=c.confidence,
-                     probs=dict(c.probs), gain=g.value, backend=c.backend,
+                     probs=dict(c.probs), gain=gain, backend=c.backend,
                      degraded=c.degraded or g.degraded, why=explain(state),
                      features={k: v for k, v in state.items() if k in FEATURE_LABELS},
                      held_by=held_by,

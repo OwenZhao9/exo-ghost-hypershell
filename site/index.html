@@ -168,11 +168,12 @@
             <div><span class="small-label">传感器频率</span><strong id="frame-rate">—</strong></div>
             <div><span class="small-label">双侧摆腿</span><strong id="gait-state">—</strong></div>
           </div>
-          <div class="twin-control" aria-label="外骨骼运动模式">
+            <div class="twin-control" aria-label="外骨骼运动模式">
             <div class="twin-control-heading">
               <div><span class="small-label">运动模式</span><h3>选择运动方式</h3></div>
               <span id="control-current" role="status">当前模式：等待设备</span>
             </div>
+            <p id="ai-advice" role="status">运动建议：等待实时数据</p>
             <div class="twin-control-grid">
               <div class="twin-control-card">
                 <span>01 / ASSIST</span><h4>动力辅助</h4>
@@ -233,7 +234,7 @@
               <h3>直觉</h3>
               <p class="en-title">JEV-DECIDE</p>
               <p>
-                观察一段运动窗口，判断当前适合的策略；信心不够时，保持现状。
+                观察一段运动窗口，给出运动模式建议；连接 EvoMap 模型后也只提出建议，是否开启由操作者决定。
               </p>
               <div class="layer-foot">
                 <span>2 s</span><span>置信度门控</span>

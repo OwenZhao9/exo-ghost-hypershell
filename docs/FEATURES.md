@@ -8,7 +8,7 @@
 - **入口**：`python -m runtime.service`；`python -m tools.ctl`；本机 `dashboard/index.html`。
 - **关键文件**：`bridge/ports.py`、`bridge/exo.py`、`bridge/serial_io.py`、`bridge/protocol.py`、`runtime/service.py`、`runtime/commands.py`、`dashboard/app.js`。
 - **数据来源**：串口真实帧；页面只显示新收到的实时帧。记录落在本机 `data/`，展示网页不读取这些私人记录。
-- **安全约束**：斜坡、软限幅、穿戴档加严、急停锁存、腿板掉线静默期；串口重连后不恢复旧策略。显式启用的自动策略或保活在就绪后仍按各自配置工作。详见 `docs/safety-rules.md`。
+- **安全约束**：斜坡、软限幅、穿戴档加严、急停锁存、腿板掉线静默期；串口重连或腿板掉线后不恢复旧策略。旧版保活力矩脉冲可能越过策略上限，现拒绝非零 `--keepalive`，零策略不再自行产生脉冲。详见 `docs/safety-rules.md`。
 - **验证**：`tests/test_protocol.py`、`tests/test_real_reconnect.py`、`tests/test_runtime.py`、`tests/test_safety_regression.py`；真机连接状态需现场复核。
 
 ### 串口持续恢复（`feat/auto-reconnect-GPT` 分支）
@@ -16,7 +16,7 @@
 - **启动与换口**：默认 `--body real`；未插设备时仪表盘仍可启动，后台持续枚举串口并握手，不自动改用仿真。恢复不再有 40 次上限；启动后才插入设备，也会继续监测后续断线。`--body sim` 与 `--body auto` 保留显式选择入口。
 - **曲线与控制**：新帧到达后恢复真实曲线；网页连接还在但 1.5 秒无新帧、串口重连或急停时，清除过期曲线与关节读数，并明确显示等待数据或人工恢复。串口重连清除旧策略和脉冲，保留 15 秒零指令等待期；等待中继续显示数据，但不接受需要施力的新控制命令。操作员急停锁存不能由开机自动解除。
 - **腿板状态**：“腿板掉线”是双侧角度与角速度四项连续 180 帧全零的推断，单纯角速度为零不会触发；串口在线不等于关节传感器已恢复。
-- **可选保活**：`--keepalive 60` 默认关闭；显式启用后，闲置时给左腿短暂力矩脉冲，仍受斜坡和限幅约束，在 `zero` 下也可能产生真实运动。它不是角度保持；防止待机或关机的效果尚未验证。
+- **保活处理**：`--keepalive` 只接受 0；旧版左腿力矩脉冲已移除，避免超过助力策略上限或在 `zero` 下施力。防止设备闲置待机仍未解决。
 - **已验证**：完整 Python 测试 126 项通过，包含无端口启动后首次连接、再次断流换口恢复和目标归零。桌面真机已检查约 180 Hz 实时数据、一次自然断流后的恢复记录及保活脉冲后归零；尚未完成反复物理换口/重启压力测试及穿戴恢复验证。
 - **详细说明**：[串口发现、持续恢复与保活](serial-recovery.md)；实现入口为 `bridge/exo.py`、`bridge/ports.py`、`runtime/service.py`、`runtime/status.py`、`dashboard/app.js`、`tools/ctl.py`。
 
@@ -24,6 +24,7 @@
 
 - **反射 / fly-reflex**：`control/reflex_rules.py`、`control/safety.py` 逐帧检查，异常时减弱输出或急停。不能让模型推理阻塞读线程。
 - **直觉 / jev-decide**：`agent/features.py`、`agent/policy_rules.py`、`agent/decide.py` 计算短时间窗口的策略建议；置信度不足时维持原策略。自动执行默认关闭。
+- **EvoMap Gateway 模型建议**：启动服务前设置 `EVOMAP_API_KEY`（`sk-evomap-` 开头）后，直觉层通过 EvoMap Gateway 的 OpenAI 兼容 Chat Completions 调用已绑定的模型；默认模型 ID 为 `evomap-gemini-3.1-pro-preview`，可用 `EVOMAP_MODEL` 调整。只发送提取后的运动特征和安全状态，不发送原始逐帧记录或密钥到网页；请求在工作线程执行，不阻塞串口与主循环。服务禁止模型模式下的 `--autopilot`，模型只能建议；本地规则对急停、掉线、低数据率和助力幅度有最终否决权。缺 key 或远端失败时用本地规则。网页 3D 页显示最近建议及来源，不能由建议直接施力。**目前缺少可供本会话使用的完整 Gateway key，尚未验证真实 API 调用或真机助力。**
 - **经验 / evomap-genes**：`agent/memory.py`、`agent/capsules.py` 存取问题处理经验；数据库操作放在后台线程，不能阻塞设备读线程。
 - **验证**：`tests/test_reflex_backends.py`、`tests/test_decide.py`、`tests/test_memory.py`。各独立库的版本和测试在各自仓库维护。
 

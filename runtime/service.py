@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import math
 import os
@@ -25,8 +26,8 @@ from tools.webhub import WebHub, lan_ip
 
 CMD_FILE = "data/cmd.json"
 STATUS_FILE = "data/status.json"
-KEEPALIVE_PULSE_NM = 1.0         # 保活脉冲要大到能克服静摩擦（实测约 0.5 Nm 才动）
-KEEPALIVE_PULSE_S = 0.4
+EVOMAP_GATEWAY_BASE_URL = "https://api.evomap.ai/v1"
+EVOMAP_DEFAULT_MODEL = "evomap-gemini-3.1-pro-preview"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,8 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="力矩斜坡上限 Nm/s（项目规则：默认要慢）")
     ap.add_argument("--port", default=None)
     ap.add_argument("--keepalive", type=float, default=0.0,
-                    help=f"每 N 秒无运动时给左腿一个 {KEEPALIVE_PULSE_NM} Nm×"
-                         f"{KEEPALIVE_PULSE_S} s 的脉冲，试图阻止设备闲置待机（0=关）")
+                    help="旧版保活力矩脉冲已停用；只能设为 0")
     ap.add_argument("--no-web", action="store_true", help="不启动网页仪表盘")
     ap.add_argument("--http-port", type=int, default=8000, help="网页端口")
     ap.add_argument("--ws-port", type=int, default=8765, help="遥测 WebSocket 端口")
@@ -85,7 +85,15 @@ def read_cmd_file(last_seq: int, path: str = CMD_FILE) -> Optional[dict]:
 
 
 def main(argv: Optional[list[str]] = None) -> None:
-    a = build_parser().parse_args(argv)
+    parser = build_parser()
+    a = parser.parse_args(argv)
+    if a.keepalive != 0:
+        parser.error("--keepalive 力矩脉冲会绕过策略限幅，已停用；请使用 0")
+    evomap_key = os.environ.get("EVOMAP_API_KEY", "").strip()
+    if evomap_key and not evomap_key.startswith("sk-evomap-"):
+        parser.error("EVOMAP_API_KEY 必须是 EvoMap Gateway key（sk-evomap-…）")
+    if evomap_key and a.autopilot:
+        parser.error("EvoMap 大模型目前只能给建议；请移除 --autopilot")
     os.makedirs(a.state_dir, exist_ok=True)
     cmd_file = os.path.join(a.state_dir, "cmd.json")
     status_file = os.path.join(a.state_dir, "status.json")
@@ -101,6 +109,9 @@ def main(argv: Optional[list[str]] = None) -> None:
         hub.body = "sim" if hasattr(bridge, "set_gait") else "real"
     memory = None
     decider = None
+    decision_pool = None
+    decision_future = None
+    decision_context = None
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
 
     journal = Journal()          # 路径要等 ENABLE 之后才知道，见下面 set_path
@@ -136,8 +147,6 @@ def main(argv: Optional[list[str]] = None) -> None:
         tl0, tr0 = pol.torque(s, 1.0)
         sc = session.monitor.assist_scale(s, tl0, tr0) if pol.name == "assist" else 1.0
         tl, tr = pol.torque(s, sc)
-        if s.host_t < session.pulse_until:
-            tl += KEEPALIVE_PULSE_NM        # 保活脉冲叠加在策略输出上
         bridge.set_torque(tl, tr)
         stats["scale"] = sc
         stats["n"] += 1
@@ -153,15 +162,14 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     # ---------- 设备事件 ----------
     def on_event(ev: str) -> None:
-        if ev == "stall":
+        if ev in {"stall", "legs_offline"}:
+            # 腿板恢复后不得自动沿用失效前的助力/阻力策略。
             session.policy = P.make_policy("zero", 0.0, 1.5)
-            session.pulse_until = 0.0
             bridge.set_torque(0.0, 0.0)
         if ev == "reconnected":
             from control.safety import SafetyMonitor
             session.monitor = SafetyMonitor(prof, warmup_s=events.LEGS_ONLINE_QUIET_S)
             session.legs_online_at = time.time()
-            session.last_motion = time.time()
             session.policy = P.make_policy("zero", 0.0, 1.5)
             start_journal("reconnected")
         if ev == "legs_online":
@@ -169,7 +177,6 @@ def main(argv: Optional[list[str]] = None) -> None:
             from control.safety import SafetyMonitor
             session.monitor = SafetyMonitor(prof, warmup_s=events.LEGS_ONLINE_QUIET_S)
             session.legs_online_at = time.time()
-            session.last_motion = time.time()
             log(events.LEGS_ONLINE_HINT, "warn")
             return
         if ev.startswith("trip:"):
@@ -217,9 +224,13 @@ def main(argv: Optional[list[str]] = None) -> None:
         from agent.decide import GhostDecider
 
         def on_decision(d) -> None:
-            src = "本地规则（无 API key）" if d.backend == "rules" and d.degraded else d.backend
+            src = ("本地安全规则" if d.held_by == "safety" else
+                   "本地规则（EvoMap 暂不可用）" if evomap_key and d.backend == "rules" else
+                   "本地规则" if d.backend == "rules" else "EvoMap Gateway")
             head = f"决策：{d.want}（置信 {d.confidence:.2f}，来自 {src}）"
-            if d.held_by == "gate":
+            if d.held_by == "safety":
+                log(f"{head} → 本地安全规则只允许 zero", "warn")
+            elif d.held_by == "gate":
                 log(f"{head} → 置信度不足 {a.min_confidence}，保持 {d.applied} 不动", "warn")
             elif d.held_by == "hold":
                 log(f"{head} → 刚换过策略，{decider.min_hold_s:.0f} 秒内不再改，"
@@ -233,7 +244,15 @@ def main(argv: Optional[list[str]] = None) -> None:
             log(f"    依据：{d.why}", kind="decision", decision=d.to_dict())
 
         decider = GhostDecider(period_s=a.decide_period, min_confidence=a.min_confidence,
-                               autopilot=a.autopilot, on_decision=on_decision)
+                               autopilot=a.autopilot,
+                               backend="llm" if evomap_key else "rules",
+                               api_key=evomap_key or None,
+                               base_url=EVOMAP_GATEWAY_BASE_URL if evomap_key else None,
+                               model=os.environ.get("EVOMAP_MODEL", EVOMAP_DEFAULT_MODEL) if evomap_key else None)
+        decision_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ghost-decide")
+        log("直觉层：EvoMap Gateway 仅建议，模型 "
+            + os.environ.get("EVOMAP_MODEL", EVOMAP_DEFAULT_MODEL)
+            if evomap_key else "直觉层：本地规则，仅建议")
 
     # 启动时忽略上次遗留的命令文件，避免重放旧策略
     try:
@@ -283,26 +302,28 @@ def main(argv: Optional[list[str]] = None) -> None:
             time.sleep(0.2)
             now = time.time()
 
-            # 保活脉冲
-            s_ = bridge.latest
-            if s_ and (abs(s_.ldps) > 5 or abs(s_.rdps) > 5):
-                session.last_motion = now
-            if (a.keepalive > 0 and session.armed and not bridge.legs_offline
-                    and bridge.enabled
-                    and now - session.last_motion > a.keepalive
-                    and now > session.pulse_until + a.keepalive):
-                session.pulse_until = now + KEEPALIVE_PULSE_S
-                log(f"keepalive 脉冲 {KEEPALIVE_PULSE_NM} Nm × {KEEPALIVE_PULSE_S} s（左腿）")
-
-            # 直觉层：每隔 --decide-period 做一次决策（会阻塞，所以只在主循环里做）
-            if decider is not None and bridge.enabled and not bridge._reconnecting and decider.due(now):
+            # 网络决策只能在工作线程等待；主循环仍需及时处理 zero / estop。
+            if (decider is not None and decision_future is None and bridge.enabled
+                    and not bridge._reconnecting and decider.due(now)):
+                decision_context = (session.armed, bridge.tripped,
+                                    bridge.legs_offline, session.policy.name)
+                decision_future = decision_pool.submit(
+                    decider.tick, now, current_policy=session.policy.name,
+                    armed=session.armed, tripped=bridge.tripped,
+                    legs_offline=bridge.legs_offline)
+            if decision_future is not None and decision_future.done():
                 try:
-                    d = decider.tick(now, current_policy=session.policy.name,
-                                     armed=session.armed, tripped=bridge.tripped,
-                                     legs_offline=bridge.legs_offline)
+                    d = decision_future.result()
                 except Exception as e:
                     d = None
                     log(f"决策层出错（已忽略，不影响控制）：{e}", "err")
+                decision_future = None
+                current_context = (session.armed, bridge.tripped,
+                                   bridge.legs_offline, session.policy.name)
+                if decision_context != current_context:
+                    d = None                 # 急停、掉线或手动换策略后丢弃旧建议
+                if d is not None:
+                    on_decision(d)
                 if d is not None and decider.autopilot:
                     caps = {"assist": 0.8, "resist": 1.5, "zero": 1.5}   # 项目规则：assist 上限更严
                     if d.applied != session.policy.name:
@@ -365,6 +386,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     except KeyboardInterrupt:
         print("\nCtrl-C", flush=True)
     finally:
+        if decision_pool is not None:
+            decision_pool.shutdown(wait=False, cancel_futures=True)
         journal.write("session", phase="end", frames=stats["n"],
                       work_J=round(stats["work"], 3), reconnects=bridge.n_reconnects,
                       tripped=bridge.tripped,
@@ -374,8 +397,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         print("DISABLE ->", bridge.disable(), flush=True)
         bridge.close()
         if decider is not None:
-            print(f"直觉层：决策 {decider.n_decisions} 次，其中 {decider.n_held} 次因置信度不足"
-                  f"保持原状，{decider.n_applied} 次自动下发", flush=True)
+            print(f"直觉层：决策 {decider.n_decisions} 次，其中 {decider.n_held} 次被门控或安全规则限制，"
+                  f"{decider.n_applied} 次自动下发", flush=True)
         if memory is not None:               # 把这次会话沉淀下去再走
             memory.note("会话结束", "success", payload={
                 "frames": stats["n"], "work_J": round(stats["work"], 3),

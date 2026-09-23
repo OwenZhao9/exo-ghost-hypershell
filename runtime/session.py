@@ -5,8 +5,7 @@
 """
 from __future__ import annotations
 
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import control.policies as P
@@ -25,8 +24,6 @@ class Session:
     memory: Optional[Any] = None          # agent.memory.GhostMemory；没接经验层时为 None
     armed: bool = True
     seq: int = 0                              # 已处理到的命令序号
-    pulse_until: float = 0.0                  # keepalive 脉冲的截止时刻
-    last_motion: float = field(default_factory=time.time)
     legs_online_at: Optional[float] = None    # 腿板上线时刻，用于静默期
 
     def __post_init__(self) -> None:
