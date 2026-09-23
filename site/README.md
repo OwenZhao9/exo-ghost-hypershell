@@ -2,7 +2,7 @@
 
 用户最新要求只在本机使用，不发布到 Cloudflare 或其他公网服务。原 Cloudflare Pages 项目 `exo-ghost` 已删除。
 
-网页由 `index.html`、`styles.css`、`app.js`、`live.js` 和 `assets/`、`data/`、`vendor/` 组成，无构建步骤。它可只读订阅本机设备数据，也可查看真实桌面记录回放。
+网页由 `index.html`、`styles.css`、`app.js`、`live.js`、`control.js` 和 `assets/`、`data/`、`vendor/` 组成，无构建步骤。3D 页可读取真机实时流、播放真实桌面记录，并在安全条件满足后手动请求动力辅助或健身阻力。
 
 ## 本地启动
 
@@ -16,7 +16,7 @@ python3 -m http.server 8788 --bind 127.0.0.1 --directory site
 
 ## 更新流程
 
-每次功能变更，同步 `docs/FEATURES.md`、`CHANGELOG.md` 和本网页，按仓库 `AGENTS.md` 进行本机验证。网页的设备数据连接仅限只读 `ws://127.0.0.1:8765`；不要在展示页接入串口、发送控制命令或访问私人数据库。
+每次功能变更，同步 `docs/FEATURES.md`、`CHANGELOG.md` 和本网页，按仓库 `AGENTS.md` 进行本机验证。网页不直接打开串口，不读取私人数据库。运动模式只经现有本机 WebSocket 控制服务；需要明确的 `body=real`、`profile=table|wearing`、`ARMED`、新鲜状态和传感器帧及操作者对安全档的确认。断线或重启后不自动开启模式。旧服务若不报告安全档，页面仍可显示实时姿态，但模式按钮保持禁用。`zero` 与 `estop` 在连接存在时始终可发送。
 
 ## 实时视图
 

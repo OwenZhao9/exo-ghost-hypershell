@@ -168,11 +168,35 @@
             <div><span class="small-label">传感器频率</span><strong id="frame-rate">—</strong></div>
             <div><span class="small-label">双侧摆腿</span><strong id="gait-state">—</strong></div>
           </div>
+          <div class="twin-control" aria-label="外骨骼运动模式">
+            <div class="twin-control-heading">
+              <div><span class="small-label">运动模式</span><h3>选择运动方式</h3></div>
+              <span id="control-current" role="status">当前模式：等待设备</span>
+            </div>
+            <div class="twin-control-grid">
+              <div class="twin-control-card">
+                <span>01 / ASSIST</span><h4>动力辅助</h4>
+                <p>顺着髋关节运动提供轻量辅助。首次启动采用 0.1 增益、0.5 N·m 上限。</p>
+                <button id="start-assist" type="button" disabled>开启动力辅助</button>
+              </div>
+              <div class="twin-control-card">
+                <span>02 / RESIST</span><h4>健身阻力</h4>
+                <p>运动时施加轻量阻力。首次启动采用 0.3 增益、0.5 N·m 上限。</p>
+                <button id="start-resist" type="button" disabled>开启健身阻力</button>
+              </div>
+            </div>
+            <label class="control-confirm"><input id="control-confirm" type="checkbox" disabled />
+              <span id="control-confirm-label">等待设备报告安全档</span></label>
+            <div class="control-footer"><p id="control-reason" role="status">等待设备连接</p>
+              <button id="control-zero" type="button" disabled>松劲</button>
+              <button id="control-estop" class="danger" type="button" disabled>急停</button>
+            </div>
+          </div>
         </div>
         <div class="twin-caption">
           <span>01</span>
           <p>
-            3D 外骨骼依据获准使用的 Hypershell 官方产品图制作；半透明白膜人体参考官方穿戴展示的比例，没有真实面孔，并与外骨骼的前后穿戴方向对齐。腰部与膝盖上方的固定件已贴近人体外形，膝上约两指的位置仅供视觉展示。实时视图只读取本机设备服务，以首次有效角度对齐模型，也可手动重新对齐；腰部传感器检测到转向时，模型可跟随转身。双髋角度驱动腿部，持续交替摆动时显示状态；此状态不代表已测得脚步或行走距离。离线时停止更新姿态。历史数据来自真实设备的桌面标定记录。模型姿态仅用于观察，不用于设备运动控制。
+            3D 外骨骼依据获准使用的 Hypershell 官方产品图制作；半透明白膜人体参考官方穿戴展示的比例，没有真实面孔，并与外骨骼的前后穿戴方向对齐。腰部与膝盖上方的固定件已贴近人体外形，膝上约两指的位置仅供视觉展示。实时视图读取本机设备服务，以首次有效角度对齐模型，也可手动重新对齐；腰部传感器检测到转向时，模型可跟随转身。双髋角度驱动腿部，持续交替摆动时显示状态；此状态不代表已测得脚步或行走距离。离线时停止更新姿态。历史数据来自真实设备的桌面标定记录。运动模式仅在真机来源、安全档和实时状态确认后手动开启；模型姿态本身不用于设备运动控制。
           </p>
         </div>
       </section>
@@ -333,7 +357,7 @@
         </div>
         <div class="product-actions">
           <p class="product-note">
-            产品工作区在本机运行，默认只读查看。运动控制需在本机另行启用；本展示页只读显示设备运动数据，不访问私人档案，也不发送控制指令。
+            产品工作区在本机运行，默认只读查看。此页 3D 区域提供动力辅助和健身阻力的手动入口，仅在真机来源、设备状态及安全档确认后开放；个人档案仍留在本机产品工作区。
           </p>
           <a class="button button-ghost" href="https://github.com/OwenZhao9/exo-ghost-hypershell/tree/integration/product-GPT" target="_blank" rel="noopener noreferrer">
             查看产品代码 <span aria-hidden="true">↗</span>

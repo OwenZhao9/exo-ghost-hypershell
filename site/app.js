@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { connectTelemetry } from "./live.js";
+import { modeReadiness, modeCommand } from "./control.js";
 import { GaitPatternDetector, YawFollower } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
@@ -24,6 +25,14 @@ const leftTorqueEl = document.getElementById("left-torque");
 const rightTorqueEl = document.getElementById("right-torque");
 const rateEl = document.getElementById("frame-rate");
 const gaitEl = document.getElementById("gait-state");
+const assistButton = document.getElementById("start-assist");
+const resistButton = document.getElementById("start-resist");
+const zeroButton = document.getElementById("control-zero");
+const estopButton = document.getElementById("control-estop");
+const controlConfirm = document.getElementById("control-confirm");
+const confirmLabel = document.getElementById("control-confirm-label");
+const controlReason = document.getElementById("control-reason");
+const controlCurrent = document.getElementById("control-current");
 
 let viewer;
 let replay;
@@ -36,6 +45,7 @@ let neutral = { live: null, replay: null };
 let humanVisible = true;
 let liveRefreshScheduled = false;
 let turnEnabled = true;
+let confirmedProfile = null;
 const yawFollower = new YawFollower();
 const gaitDetector = new GaitPatternDetector();
 
@@ -264,10 +274,62 @@ function updateMode() {
     if (replay?.frames?.length) showFrame(replayFrame(replay.frames[0]), "replay");
     else clearReadings();
   }
+  updateControls();
 }
 
-connectTelemetry({ onChange: (next) => {
+function updateControls() {
+  const profile = live.status?.profile;
+  const canConfirm = live.connected && live.status?.body === "real" &&
+    ["table", "wearing"].includes(profile);
+  if (!canConfirm || (confirmedProfile && confirmedProfile !== profile)) {
+    confirmedProfile = null;
+    controlConfirm.checked = false;
+  }
+  controlConfirm.disabled = !canConfirm;
+  confirmLabel.textContent = profile === "table"
+    ? "我确认设备放在桌面或支架上、无人穿戴（桌面档）"
+    : profile === "wearing"
+      ? "我确认当前有人穿戴，已按穿戴档完成检查并能立即急停"
+      : "等待设备报告安全档";
+  const ready = modeReadiness(live, confirmedProfile);
+  assistButton.disabled = resistButton.disabled = mode !== "live" || !ready.ready;
+  zeroButton.disabled = estopButton.disabled = !live.connected;
+  const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
+  controlCurrent.textContent = live.connected && live.statusAgeMs < 3000 && live.status?.policy
+    ? `当前模式：${names[live.status.policy] || live.status.policy}` : "当前模式：等待设备";
+  controlReason.textContent = mode === "live" ? ready.reason : "切换到实时数据后可操作";
+}
+
+controlConfirm.addEventListener("change", () => {
+  confirmedProfile = controlConfirm.checked ? live.status?.profile : null;
+  updateControls();
+});
+
+function sendMode(name) {
+  try {
+    const readiness = modeReadiness(live, confirmedProfile);
+    if (mode !== "live") throw new Error("请先切换到实时数据");
+    telemetry.send(modeCommand(name, readiness));
+    controlReason.textContent = "请求已发送，等待设备状态确认";
+  } catch (error) {
+    controlReason.textContent = error.message;
+  }
+}
+
+assistButton.addEventListener("click", () => sendMode("assist"));
+resistButton.addEventListener("click", () => sendMode("resist"));
+zeroButton.addEventListener("click", () => {
+  try { telemetry.send({ op: "zero" }); controlReason.textContent = "松劲请求已发送"; }
+  catch (error) { controlReason.textContent = error.message; }
+});
+estopButton.addEventListener("click", () => {
+  try { telemetry.send({ op: "estop" }); controlReason.textContent = "急停请求已发送"; }
+  catch (error) { controlReason.textContent = error.message; }
+});
+
+const telemetry = connectTelemetry({ onChange: (next) => {
   live = next;
+  updateControls();
   if (mode !== "live" || liveRefreshScheduled) return;
   liveRefreshScheduled = true;
   requestAnimationFrame(() => {

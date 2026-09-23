@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { liveState, parseFrame } from "../site/live.js";
+import { controlState, liveState, parseFrame } from "../site/live.js";
+import { MODES, modeCommand, modeReadiness } from "../site/control.js";
 import { GaitPatternDetector, YawFollower } from "../site/motion.js";
 
 const sensor = { k: "s", v: [-12, 23, 1.5, -2.5, 0.1, -0.2, 0, 10, 11, 12] };
@@ -37,6 +38,28 @@ test("never treats simulation, leg dropout, or stale samples as live movement", 
   assert.deepEqual(liveState({ body: "real", state: "TRIPPED" }, frame, 20, true), {
     label: "设备急停 · 实时读数", level: "warn", usable: true,
   });
+});
+
+test("mode controls require verified real source, profile and fresh armed data", () => {
+  const base = { status: { body: "real", profile: "table", state: "ARMED", hz: 180 },
+    frame: parseFrame(sensor), frameAgeMs: 20, statusAgeMs: 20,
+    connected: true, confirmed: true };
+  assert.equal(controlState(base).ready, true);
+  for (const change of [
+    { connected: false }, { frameAgeMs: 1000 }, { statusAgeMs: 3000 },
+    { confirmed: false }, { status: { ...base.status, body: "sim" } },
+    { status: { ...base.status, body: undefined } },
+    { status: { ...base.status, profile: undefined } },
+    { status: { ...base.status, state: "TRIPPED" } },
+    { status: { ...base.status, hz: 20 } },
+    { status: { ...base.status, hz: undefined } },
+    { status: { ...base.status, legs_offline: true } },
+  ]) assert.equal(controlState({ ...base, ...change }).ready, false);
+  assert.equal(modeReadiness({ ...base, frame: base.frame }, "wearing").ready, false);
+  assert.deepEqual(modeCommand("assist", { ready: true }), MODES.assist);
+  assert.equal(MODES.assist.max, 0.5);
+  assert.equal(MODES.resist.max, 0.5);
+  assert.throws(() => modeCommand("assist", { ready: false, reason: "不就绪" }), /不就绪/);
 });
 
 test("bilateral alternating hip motion is detected without claiming one-leg movement as gait", () => {

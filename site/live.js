@@ -42,6 +42,22 @@ export function liveState(status, frame, ageMs, connected) {
   return { label: "真机实时数据", level: "online", usable: true };
 }
 
+export function controlState({ status, frame, frameAgeMs, statusAgeMs, connected, confirmed }) {
+  if (!connected || !frame || !Number.isFinite(frameAgeMs) ||
+      !Number.isFinite(statusAgeMs) || frameAgeMs >= 1000 || statusAgeMs >= 3000)
+    return { ready: false, reason: "等待新鲜的设备数据" };
+  if (status.body !== "real")
+    return { ready: false, reason: "控制服务未确认真机来源" };
+  if (!(["table", "wearing"].includes(status.profile)))
+    return { ready: false, reason: "控制服务未报告安全档" };
+  if (status.state !== "ARMED" || status.legs_offline || status.tripped ||
+      !Number.isFinite(status.hz) || status.hz < 50)
+    return { ready: false, reason: "设备尚未就绪" };
+  if (!confirmed)
+    return { ready: false, reason: "请先确认设备放置状态与安全档" };
+  return { ready: true, reason: "设备已就绪" };
+}
+
 export function connectTelemetry({ onChange, WebSocketClass = WebSocket, now = () => performance.now() }) {
   let socket = null;
   let reconnectTimer = null;
@@ -51,10 +67,12 @@ export function connectTelemetry({ onChange, WebSocketClass = WebSocket, now = (
   let status = {};
   let frame = null;
   let frameAt = -Infinity;
+  let statusAt = -Infinity;
 
   const emit = () => {
     const state = liveState(status, frame, now() - frameAt, connected);
-    onChange({ ...state, status, frame: state.usable ? frame : null });
+    onChange({ ...state, status, frame: state.usable ? frame : null,
+      connected, frameAgeMs: now() - frameAt, statusAgeMs: now() - statusAt });
   };
 
   const connect = () => {
@@ -73,6 +91,7 @@ export function connectTelemetry({ onChange, WebSocketClass = WebSocket, now = (
       }
       if (message.k === "st") {
         status = message;
+        statusAt = now();
         emit();
       } else if (message.k === "s") {
         const parsed = parseFrame(message);
@@ -87,6 +106,7 @@ export function connectTelemetry({ onChange, WebSocketClass = WebSocket, now = (
       frame = null;
       frameAt = -Infinity;
       status = {};
+      statusAt = -Infinity;
       emit();
       if (!closed) reconnectTimer = setTimeout(connect, RETRY_MS);
     };
@@ -96,10 +116,16 @@ export function connectTelemetry({ onChange, WebSocketClass = WebSocket, now = (
   connect();
   monitorTimer = setInterval(emit, 250);
   emit();
-  return () => {
+  const close = () => {
     closed = true;
     clearTimeout(reconnectTimer);
     clearInterval(monitorTimer);
     socket?.close();
   };
+  close.send = (command) => {
+    if (closed || !connected || socket?.readyState !== WebSocketClass.OPEN)
+      throw new Error("设备连接已断开");
+    socket.send(JSON.stringify(command));
+  };
+  return close;
 }
