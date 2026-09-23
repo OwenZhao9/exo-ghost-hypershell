@@ -244,6 +244,18 @@ def test_existing_jev_decide_library_sends_typesafe_choice(monkeypatch):
     assert sent["headers"]["Authorization"] == "Bearer test-key"
 
 
+def test_auto_backend_never_routes_telemetry_to_generic_llm(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "unrelated-key")
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    g = fresh(backend="auto")
+    assert g.decider.chain == ("jev", "rules")
+    for s in frames("walk"):
+        g.feed(s)
+    d = g.tick(100.0, current_policy="zero", armed=True,
+               tripped=None, legs_offline=False)
+    assert d.backend == "rules"
+
+
 def test_unsafe_state_forces_zero_without_remote_call(monkeypatch):
     g = fresh(backend="jev", autopilot=True)
     for s in frames("walk"):

@@ -6,9 +6,9 @@
 
 ### jEV 策略建议接入
 
-- 沿用独立的 `jev-decide` v0.1.1 仓库和现有依赖；`runtime/service.py` 新增 `--decide-backend auto|jev|rules`，有 TypeSafe API key 时可选择 jEV，缺少密钥或请求失败时由库回退到本地规则。默认 `auto`、自动执行仍默认关闭；不迁移密钥文件。
+- 沿用独立的 `jev-decide` v0.1.1 仓库和现有依赖；`runtime/service.py` 新增 `--decide-backend auto|jev|rules`，有 TypeSafe API key 时可选择 jEV，缺少密钥或请求失败时由库回退到本地规则。此控制链路禁用库默认链中的通用 LLM 备选，避免传感器特征被其他已配置的模型密钥意外转发。默认 `auto`、自动执行仍默认关闭；不迁移密钥文件。
 - `agent/decide.py` 将决策请求移到单个后台线程，主控制循环不等待网络；过期或控制策略已变化的结果不执行。急停、腿板掉线、未武装或数据不足时直接采用本地 `zero`，不受置信度门控或防抖抑制。助力增益改由本地规则计算，不再采用远端 Score 作为物理控制量。
-- `docs/FEATURES.md` 与本地展示页同步注明已实现的接入路径及尚未完成的真实 API 和真机联调。验证：`uv run pytest tests/ -q`，127 项通过；Chrome 本地桌面及手机布局已检查。真实 API 因尚无 TypeSafe key 未验证。
+- `docs/FEATURES.md` 与本地展示页同步注明已实现的接入路径及尚未完成的真实 API 和真机联调。验证：`uv run pytest tests/ -q`，128 项通过；Chrome 本地桌面及手机布局已检查。真实 API 因尚无 TypeSafe key 未验证。
 
 ### 实体姿态跟随对齐
 

@@ -14,7 +14,7 @@
 ## Ghost 三层 Agent
 
 - **反射 / fly-reflex**：`control/reflex_rules.py`、`control/safety.py` 逐帧检查，异常时减弱输出或急停。不能让模型推理阻塞读线程。
-- **直觉 / jev-decide**：`agent/features.py`、`agent/policy_rules.py`、`agent/decide.py` 从传感器窗口提取特征，经已有的 `jev-decide` 仓库选择策略。`runtime/service.py` 的 `--decide-backend auto|jev|rules` 选择来源；默认 `auto`，有 `TYPESAFE_API_KEY` 时尝试 TypeSafe jEV，否则回退到本地规则。`jev` 也会在网络失败时回退本地规则，并在状态中标记实际来源。jEV 请求在后台线程执行，主循环不等网络；过期或控制状态变化的回答被丢弃。未武装、急停、腿板掉线和数据不足时只给 `zero`；力矩增益始终由 `agent/policy_rules.py` 本地计算，置信度不足时维持原策略。自动执行默认关闭，需要显式 `--autopilot`，下发仍经过既有安全限制。配置密钥后，特征及控制状态会发送到 TypeSafe；密钥只从环境变量读取，不写入日志或展示页。已有单元测试覆盖后台非阻塞、过期回答和安全拦截；真实 TypeSafe API 与真机自动执行尚未联调。
+- **直觉 / jev-decide**：`agent/features.py`、`agent/policy_rules.py`、`agent/decide.py` 从传感器窗口提取特征，经已有的 `jev-decide` 仓库选择策略。`runtime/service.py` 的 `--decide-backend auto|jev|rules` 选择来源；默认 `auto`，有 `TYPESAFE_API_KEY` 时尝试 TypeSafe jEV，否则回退到本地规则。此控制链路的回退顺序明确限定为 `jev → rules`，不会尝试库中的通用 LLM 后端。`jev` 也会在网络失败时回退本地规则，并在状态中标记实际来源。jEV 请求在后台线程执行，主循环不等网络；过期或控制状态变化的回答被丢弃。未武装、急停、腿板掉线和数据不足时只给 `zero`；力矩增益始终由 `agent/policy_rules.py` 本地计算，置信度不足时维持原策略。自动执行默认关闭，需要显式 `--autopilot`，下发仍经过既有安全限制。配置密钥后，特征及控制状态会发送到 TypeSafe；密钥只从环境变量读取，不写入日志或展示页。已有单元测试覆盖后台非阻塞、过期回答和安全拦截；真实 TypeSafe API 与真机自动执行尚未联调。
 - **经验 / evomap-genes**：`agent/memory.py`、`agent/capsules.py` 存取问题处理经验；数据库操作放在后台线程，不能阻塞设备读线程。
 - **验证**：`tests/test_reflex_backends.py`、`tests/test_decide.py`、`tests/test_memory.py`。各独立库的版本和测试在各自仓库维护。
 

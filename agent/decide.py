@@ -79,7 +79,11 @@ class GhostDecider:
         self.min_hold_s = min_hold_s        # 两次换策略之间至少隔这么久，防抖
         self.autopilot = autopilot
         self.on_decision = on_decision
-        self.decider = Decider(backend, api_key=api_key, timeout_s=timeout_s)
+        # This hardware path may send telemetry only to the configured TypeSafe
+        # endpoint.  The library's generic auto chain also includes an LLM
+        # backend, so explicitly restrict the chain to jEV and local rules.
+        self.decider = Decider(backend, api_key=api_key, timeout_s=timeout_s,
+                               fallback_chain=("jev", "rules"))
         self.safety_decider = Decider("rules")
         self.backend_mode = backend
         self.background = background
