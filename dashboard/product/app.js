@@ -66,7 +66,7 @@ async function render() {
         ui.metric('最近一次', personal.length ? new Date(personal[0].started_at * 1000).toLocaleDateString('zh-CN') : '—'));
       root.append(grid);
       const section = ui.el('div', null, 'section-head');
-      section.append(ui.el('h2', '选择一项任务'), ui.el('span', '运动 / 档案 / 偏好 / 成长'));
+      section.append(ui.el('h2', '选择一项任务'), ui.el('span', '运动 / 档案 / 偏好 / 成长 / 眼镜'));
       root.append(section);
       const cards = ui.el('div', null, 'grid feature-grid');
       config.features.forEach((f, i) => {

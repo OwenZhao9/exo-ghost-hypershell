@@ -4,6 +4,11 @@
 
 ## 2026-09-23
 
+### 眼镜照片描述试验
+
+- 找回本机 `/Users/owenzhao/eyeGalss/luma-core` 的 Luma 眼镜采图代码；保持原工作区未提交改动不变。`feat/glasses-guide-GPT` 新增只读照片列表、手动选图和 EvoMap Gateway 视觉请求封装，合入产品工作区。Gateway Key 从 `EVOMAP_GATEWAY_API_KEY` 读取，不进入前端、日志或 Git。旧照片标识历史，不推断道路可通行，不向外骨骼发送命令。
+- 产品启动可指定 `--glasses-dir`；未配置 Key 时页面只显示照片列表，真实图像发送需人手点击。`site/` 仅说明开发中范围，不展示私人照片。兼容现有只读控制服务；无需修改或重启占用串口的进程。验证：接口单元测试、现有产品测试、Chrome 本地页面检查。真实 EvoMap 图片透传、眼镜音频及实际引路待验收。
+
 ### 改为本地展示
 
 - 用户最新要求停止公网发布，Cloudflare Pages 项目 `exo-ghost` 已删除。`site/` 保留为本地网页，运行方法见 `site/README.md`。
