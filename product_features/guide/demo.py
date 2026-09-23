@@ -117,12 +117,13 @@ class DemoCapture:
         try:
             while not self._stop.is_set():
                 try:
-                    self._set(phase='capturing', error=None, direction='unknown', description='')
+                    self._set(phase='capturing', error=None)
                     path, capture_seconds = self._capture()
                     captured_at = path.stat().st_mtime
                     self._set(filename=path.name, captured_at=captured_at,
                               capture_seconds=round(capture_seconds, 1),
                               analysis_seconds=None, phase='analyzing' if self.recognize else 'waiting',
+                              direction='unknown', description='',
                               sequence=self.status()['sequence'] + 1,
                               captured_count=self.status()['captured_count'] + 1)
                     if self.recognize and not self._stop.is_set():

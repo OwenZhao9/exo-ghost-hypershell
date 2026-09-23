@@ -34,7 +34,7 @@ export async function mount(root, {api, ui}) {
       state.direction === 'right' ? '画面右侧较空（演示）' : '无法判断方向';
     const phase = {idle: '已停止', capturing: '正在拍照', analyzing: '正在识别',
       scanning: '正在连接眼镜', waiting: '等待下一张', stopping: '正在停止', error: '需要重试'}[state.phase] || '等待中';
-    demoState.textContent = `${phase} · ${direction}`;
+    demoState.textContent = `${phase} · ${state.captured_count ? '最近照片：' : ''}${direction}`;
     const timings = [state.capture_seconds != null ? `拍照 ${state.capture_seconds} 秒` : '',
       state.analysis_seconds != null ? `识别 ${state.analysis_seconds} 秒` : '',
       `${state.captured_count}/${state.max_frames} 张`].filter(Boolean).join('，');
