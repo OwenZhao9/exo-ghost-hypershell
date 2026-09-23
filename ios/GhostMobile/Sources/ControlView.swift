@@ -19,8 +19,9 @@ struct ControlView: View {
                 pairing
                 device
                 curves
+                waist
                 controls
-                Text("手机与 Mac 需连接同一局域网。角度曲线只显示外骨骼传来的数据；设备断开时会清空。")
+                Text("曲线只显示外骨骼传来的实时数据；腿板掉线或数据中断时会清空。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -110,10 +111,22 @@ struct ControlView: View {
                 Text("\(connection.profile == "wearing" ? "穿戴档" : "桌面档")  ·  \(Int(connection.hertz)) Hz  ·  \(modeName(connection.policy))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    Label(connection.statusFresh ? "服务在线" : "服务状态中断",
+                          systemImage: connection.statusFresh ? "checkmark.circle.fill" : "exclamationmark.circle")
+                    Label(connection.telemetryFresh ? "腿部数据实时" : "腿部数据中断",
+                          systemImage: connection.telemetryFresh ? "waveform.path" : "waveform.path.ecg.rectangle")
+                }
+                .font(.caption)
+                .foregroundStyle(connection.telemetryFresh && connection.statusFresh ? Palette.lime : .orange)
             }
             HStack(spacing: 18) {
                 angle("左髋", value: connection.leftAngle, color: Palette.blue)
                 angle("右髋", value: connection.rightAngle, color: Palette.pink)
+            }
+            HStack(spacing: 18) {
+                metric("左髋角速度", value: connection.leftSpeed, unit: "°/s", color: Palette.blue)
+                metric("右髋角速度", value: connection.rightSpeed, unit: "°/s", color: Palette.pink)
             }
         }
         .card()
@@ -121,45 +134,76 @@ struct ControlView: View {
 
     private var curves: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("实时角度", symbol: "waveform.path.ecg")
-            Text("左髋  ━    右髋  ━")
-                .font(.caption)
-                .foregroundStyle(Palette.blue)
-            GeometryReader { geometry in
-                Canvas { context, size in
-                    let mid = size.height / 2
-                    var baseline = Path()
-                    baseline.move(to: CGPoint(x: 0, y: mid))
-                    baseline.addLine(to: CGPoint(x: size.width, y: mid))
-                    context.stroke(baseline, with: .color(.white.opacity(0.18)), lineWidth: 1)
-                    let points = connection.samples
-                    guard points.count > 1 else { return }
-                    let minTime = points.first!.id
-                    let span = max(1, points.last!.id - minTime)
-                    for (color, side) in [(Palette.blue, true), (Palette.pink, false)] {
-                        var line = Path()
-                        for (index, point) in points.enumerated() {
-                            let value = side ? point.left : point.right
-                            let x = CGFloat((point.id - minTime) / span) * size.width
-                            let y = mid - CGFloat(max(-120, min(120, value)) / 120) * mid
-                            if index == 0 { line.move(to: CGPoint(x: x, y: y)) }
-                            else { line.addLine(to: CGPoint(x: x, y: y)) }
-                        }
-                        context.stroke(line, with: .color(color), style: StrokeStyle(lineWidth: 2, lineJoin: .round))
-                    }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
+            sectionTitle("实时曲线", symbol: "waveform.path.ecg")
+            HStack(spacing: 14) {
+                Label("左髋", systemImage: "circle.fill").foregroundStyle(Palette.blue)
+                Label("右髋", systemImage: "circle.fill").foregroundStyle(Palette.pink)
+                Spacer()
+                Text("最近 10 秒").foregroundStyle(.secondary)
             }
-            .frame(height: 150)
-            .overlay {
-                if connection.samples.isEmpty {
-                    Text("等待实时数据")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+            .font(.caption)
+            telemetryChart("髋关节角度", unit: "°", left: \.left, right: \.right,
+                           ladder: [15, 30, 60, 120])
+            telemetryChart("髋关节角速度", unit: "°/s", left: \.leftSpeed, right: \.rightSpeed,
+                           ladder: [30, 75, 150, 300])
+        }
+        .card()
+    }
+
+    private var waist: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("腰部传感器", symbol: "figure.stand")
+            HStack(spacing: 10) {
+                metric("前后倾", value: connection.waistPitch, unit: "°", color: Palette.lime)
+                metric("左右倾", value: connection.waistRoll, unit: "°", color: Palette.lime)
+                metric("加速度", value: connection.waistAcceleration, unit: "g", color: Palette.lime)
+            }
+            if connection.connected && !connection.waistFresh {
+                Text("等待腰部实时数据").font(.caption).foregroundStyle(.orange)
             }
         }
         .card()
+    }
+
+    private func telemetryChart(_ title: String, unit: String,
+                                left: KeyPath<HipSample, Double>, right: KeyPath<HipSample, Double>,
+                                ladder: [Double]) -> some View {
+        let points = connection.samples
+        let peak = points.reduce(0.0) { max($0, abs($1[keyPath: left]), abs($1[keyPath: right])) }
+        let range = ladder.first { $0 >= peak * 1.08 } ?? ladder.last ?? 120
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(title).font(.subheadline.bold())
+                Spacer()
+                Text("±\(Int(range)) \(unit)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            Canvas { context, size in
+                let mid = size.height / 2
+                var baseline = Path()
+                baseline.move(to: CGPoint(x: 0, y: mid))
+                baseline.addLine(to: CGPoint(x: size.width, y: mid))
+                context.stroke(baseline, with: .color(.white.opacity(0.18)), lineWidth: 1)
+                guard points.count > 1, let end = points.last?.id else { return }
+                let start = end - 10
+                for (color, key) in [(Palette.blue, left), (Palette.pink, right)] {
+                    var line = Path()
+                    for (index, point) in points.enumerated() {
+                        let x = CGFloat((point.id - start) / 10) * size.width
+                        let value = max(-range, min(range, point[keyPath: key]))
+                        let y = mid - CGFloat(value / range) * mid
+                        if index == 0 { line.move(to: CGPoint(x: x, y: y)) }
+                        else { line.addLine(to: CGPoint(x: x, y: y)) }
+                    }
+                    context.stroke(line, with: .color(color), style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+                }
+            }
+            .frame(height: 112)
+            .overlay {
+                if points.isEmpty {
+                    Text("等待实时数据").font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 
     private var controls: some View {
@@ -196,6 +240,17 @@ struct ControlView: View {
             Text(title).font(.caption).foregroundStyle(.secondary)
             Text(value.map { String(format: "%.1f°", $0) } ?? "—")
                 .font(.system(size: 25, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func metric(_ title: String, value: Double?, unit: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(value.map { String(format: "%.1f %@", $0, unit) } ?? "—")
+                .font(.subheadline.bold())
                 .monospacedDigit()
                 .foregroundStyle(color)
         }

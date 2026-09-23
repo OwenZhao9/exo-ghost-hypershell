@@ -22,10 +22,11 @@
 
 ### iPhone 控制端（`feat/ios-mobile-GPT` 分支）
 
-- **入口与状态**：`ios/GhostMobile/` 是最低 iOS 16 的 SwiftUI App。已完成本机编译、发行签名 IPA 导出及 TestFlight 内部测试分发；尚未在用户的 iPhone 8 上安装或实测。Mac 控制服务仍独占串口，手机使用同一局域网接收真实帧、显示双侧角度曲线并发送受限命令。
-- **配对和数据**：演示版 `1.0 (3)` 用 `tools/prepare_mobile_demo.py` 将这台 Mac 的当前局域网地址和口令写入本机私有 `DemoPairing.local.xcconfig`，发行构建时注入 App。首次启动自动导入口令到 iPhone Keychain、地址到本机设置，并尝试连接；回前台可自动重连。地址变化时可在“连接设置”中修改，或重新生成配置并构建。源码和 Git 不包含口令，但发行 IPA 可提取，分发范围限获授权的内部群组。前版 `1.0 (2)` 的二维码工具仍可在 Mac 端生成，当前 App 已移除扫码入口。`runtime/mobile.py` 以 0600 权限保存 Mac 口令，`tools/webhub.py` 要求非本机 WebSocket 先配对，仅广播已有真实数据并拒绝未配对或越权命令。
+- **入口与状态**：`ios/GhostMobile/` 是最低 iOS 16 的 SwiftUI App。`1.0 (3)` 已经通过 TestFlight 安装在 iPhone 8 Plus，用户现场确认手机和 Mac 可以正常通信。Mac 控制服务仍独占串口，手机使用同一局域网接收真实帧并发送受限命令。
+- **配对和数据**：演示版用 `tools/prepare_mobile_demo.py` 将这台 Mac 的当前局域网地址和口令写入本机私有 `DemoPairing.local.xcconfig`，发行构建时注入 App。首次启动自动导入口令到 iPhone Keychain、地址到本机设置，并尝试连接；回前台可自动重连。地址变化时可在“连接设置”中修改，或重新生成配置并构建。源码和 Git 不包含口令，但发行 IPA 可提取，分发范围限获授权的内部群组。前版 `1.0 (2)` 的二维码工具仍可在 Mac 端生成，当前 App 已移除扫码入口。`runtime/mobile.py` 以 0600 权限保存 Mac 口令，`tools/webhub.py` 要求非本机 WebSocket 先配对，仅广播已有真实数据并拒绝未配对或越权命令。
+- **实时显示（`1.0 (4)`）**：`ios/GhostMobile/Sources/ExoConnection.swift` 只解析真机帧的左右髋角度、角速度和腰部前后倾、左右倾、加速度模长；`ControlView.swift` 提供最近 10 秒的髋角度与角速度双曲线、当前读数及服务/腿部数据状态。腿板掉线、串口恢复中或腿部数据超过 1 秒未更新时清空腿部读数和曲线；服务状态超过 2 秒未更新时标出中断并禁用施力选择。腰部数据独立按 1 秒新鲜度清空，不把缺失读数显示为零。数据显示不下发新的控制命令。
 - **控制约束**：手机只提供低增益阻尼、轻助力、松劲和急停；无远程重新武装、保持角度及恒定力矩。`runtime/service.py` 仍检查真机来源、已武装、腿板在线、≥50 Hz 和静默期。手机租约每 2 秒必须收到心跳，断线或过期会清掉策略并回到 `zero`。操作者须继续遵守 `docs/safety-rules.md`。
-- **验证与未完成**：`tests/test_mobile.py` 覆盖配对、私有构建配置、鉴权、白名单和断线租约；本版完整 Python 回归 134 项通过。Xcode 26.4 构建的 `1.0 (3)` 已完成发行签名、上传和 Apple 处理，分配给只有账户持有人的内部测试群组；App Store Connect 显示已安装在一台 iPhone 8 Plus 上。模拟器确认预置地址和启动后自动连接尝试，离线时控制按钮禁用。仍缺手机上的真实连接和控制验证。局域网 WebSocket 仍为明文，限可信 Wi-Fi，不支持公网远程控制。具体操作见 [iPhone 工程说明](../ios/GhostMobile/README.md)。
+- **验证与未完成**：`tests/test_mobile.py` 覆盖配对、私有构建配置、鉴权、白名单和断线租约；此前完整 Python 回归 134 项通过。Xcode 26.4 构建的 `1.0 (4)` 已完成发行签名、上传和 Apple 处理，分配给只有账户持有人的内部测试群组；App Store Connect 显示已在一台 iPhone 8 Plus 安装。用户已确认手机和 Mac 正常通信；新增曲线与断流状态已通过模拟器界面检查，真机显示仍待现场复核，手机施力与失联保护也尚未现场确认。局域网 WebSocket 仍为明文，限可信 Wi-Fi，不支持公网远程控制。具体操作见 [iPhone 工程说明](../ios/GhostMobile/README.md)。
 
 ## Ghost 三层 Agent
 

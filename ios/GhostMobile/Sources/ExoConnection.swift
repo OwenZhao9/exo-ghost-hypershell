@@ -5,6 +5,8 @@ struct HipSample: Identifiable {
     let id: Double
     let left: Double
     let right: Double
+    let leftSpeed: Double
+    let rightSpeed: Double
 }
 
 @MainActor
@@ -20,13 +22,23 @@ final class ExoConnection: ObservableObject {
     @Published private(set) var hertz = 0.0
     @Published private(set) var leftAngle: Double?
     @Published private(set) var rightAngle: Double?
+    @Published private(set) var leftSpeed: Double?
+    @Published private(set) var rightSpeed: Double?
+    @Published private(set) var waistPitch: Double?
+    @Published private(set) var waistRoll: Double?
+    @Published private(set) var waistAcceleration: Double?
+    @Published private(set) var telemetryFresh = false
+    @Published private(set) var waistFresh = false
+    @Published private(set) var statusFresh = false
     @Published private(set) var samples: [HipSample] = []
 
     private var socket: URLSessionWebSocketTask?
     private var reader: Task<Void, Never>?
     private var heartbeat: Task<Void, Never>?
+    private var freshnessMonitor: Task<Void, Never>?
     private var statusAt: Date?
     private var sampleAt: Date?
+    private var waistSampleAt: Date?
     private var activePolicy = false
 
     init() {
@@ -52,14 +64,14 @@ final class ExoConnection: ObservableObject {
 
     var ready: Bool {
         connected && body == "real" && state == "ARMED" && hertz >= 50 &&
-        statusAt.map { Date().timeIntervalSince($0) < 2.0 } == true &&
-        sampleAt.map { Date().timeIntervalSince($0) < 1.0 } == true
+        statusFresh && telemetryFresh
     }
 
     var stateText: String {
         if !connected { return message }
+        if !statusFresh { return "控制服务状态中断" }
         switch state {
-        case "ARMED": return ready ? "真机就绪" : "等待新数据"
+        case "ARMED": return ready ? "真机就绪" : "腿部数据中断"
         case "QUIET": return "安全等待"
         case "LEGS_OFF": return "腿板数据异常"
         case "TRIPPED": return "急停锁存"
@@ -86,6 +98,7 @@ final class ExoConnection: ObservableObject {
         reader = Task { await receiveLoop(task) }
         send(["op": "pair", "token": pass], on: task)
         heartbeat = Task { await heartbeatLoop(task) }
+        freshnessMonitor = Task { await freshnessLoop(task) }
     }
 
     func disconnect() {
@@ -95,6 +108,8 @@ final class ExoConnection: ObservableObject {
         reader = nil
         heartbeat?.cancel()
         heartbeat = nil
+        freshnessMonitor?.cancel()
+        freshnessMonitor = nil
         if activePolicy, let old {
             send(["op": "zero"], on: old)
         }
@@ -146,24 +161,45 @@ final class ExoConnection: ObservableObject {
                     policy = item["policy"] as? String ?? "zero"
                     hertz = item["hz"] as? Double ?? 0
                     statusAt = Date()
+                    statusFresh = true
                     if body != "real" {
-                        leftAngle = nil
-                        rightAngle = nil
-                        samples = []
-                        sampleAt = nil
+                        clearTelemetry()
+                    } else if state == "LEGS_OFF" || state == "RECONN" || state == "OFFLINE" {
+                        clearLegTelemetry()
                     }
                     if state != "ARMED" || body != "real" || hertz < 50 {
                         stopActivePolicy()
                     }
                 case "s":
-                    guard body == "real", let values = item["v"] as? [Any], values.count >= 2,
+                    guard body == "real", let values = item["v"] as? [Any], values.count >= 16,
                           let left = values[0] as? Double,
                           let right = values[1] as? Double,
+                          let leftSpeed = values[2] as? Double,
+                          let rightSpeed = values[3] as? Double,
+                          let pitch = values[7] as? Double,
+                          let roll = values[8] as? Double,
+                          let ax = values[13] as? Double,
+                          let ay = values[14] as? Double,
+                          let az = values[15] as? Double,
                           let moment = item["t"] as? Double else { continue }
+                    let numbers = [left, right, leftSpeed, rightSpeed, pitch, roll, ax, ay, az, moment]
+                    guard numbers.allSatisfy(\.isFinite) else { continue }
+                    waistPitch = pitch
+                    waistRoll = roll
+                    waistAcceleration = (ax * ax + ay * ay + az * az).squareRoot()
+                    waistSampleAt = Date()
+                    waistFresh = true
+                    guard state != "LEGS_OFF" && state != "RECONN" && state != "OFFLINE" else { continue }
+                    guard samples.last.map({ moment >= $0.id }) ?? true else { continue }
                     leftAngle = left
                     rightAngle = right
+                    self.leftSpeed = leftSpeed
+                    self.rightSpeed = rightSpeed
                     sampleAt = Date()
-                    samples.append(HipSample(id: moment, left: left, right: right))
+                    telemetryFresh = true
+                    samples.append(HipSample(id: moment, left: left, right: right,
+                                             leftSpeed: leftSpeed, rightSpeed: rightSpeed))
+                    samples.removeAll { moment - $0.id > 10 }
                     if samples.count > 600 { samples.removeFirst(samples.count - 600) }
                 default: break
                 }
@@ -171,6 +207,8 @@ final class ExoConnection: ObservableObject {
         } catch {
             if socket === task {
                 socket = nil
+                heartbeat?.cancel()
+                freshnessMonitor?.cancel()
                 clearReading(connected ? "连接断开，设备将回到松劲" : "配对失败或连接断开")
             }
         }
@@ -184,6 +222,27 @@ final class ExoConnection: ObservableObject {
                 if ready { send(["op": "heartbeat"], on: task) }
                 else { stopActivePolicy() }
             }
+        }
+    }
+
+    private func freshnessLoop(_ task: URLSessionWebSocketTask) async {
+        while !Task.isCancelled, socket === task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard socket === task else { return }
+            let now = Date()
+            let hasStatus = statusAt.map { now.timeIntervalSince($0) < 2 } == true
+            let hasLegs = sampleAt.map { now.timeIntervalSince($0) < 1 } == true
+            let hasWaist = waistSampleAt.map { now.timeIntervalSince($0) < 1 } == true
+            if statusFresh != hasStatus { statusFresh = hasStatus }
+            if waistFresh != hasWaist {
+                waistFresh = hasWaist
+                if !hasWaist { clearWaistTelemetry() }
+            }
+            if telemetryFresh != hasLegs {
+                telemetryFresh = hasLegs
+                if !hasLegs { clearLegTelemetry() }
+            }
+            if !hasStatus || !hasLegs { stopActivePolicy() }
         }
     }
 
@@ -201,12 +260,34 @@ final class ExoConnection: ObservableObject {
         policy = "zero"
         body = ""
         hertz = 0
-        leftAngle = nil
-        rightAngle = nil
-        samples = []
+        statusFresh = false
+        clearTelemetry()
         activePolicy = false
         statusAt = nil
         sampleAt = nil
+    }
+
+    private func clearLegTelemetry() {
+        leftAngle = nil
+        rightAngle = nil
+        leftSpeed = nil
+        rightSpeed = nil
+        samples = []
+        sampleAt = nil
+        telemetryFresh = false
+    }
+
+    private func clearTelemetry() {
+        clearLegTelemetry()
+        clearWaistTelemetry()
+    }
+
+    private func clearWaistTelemetry() {
+        waistPitch = nil
+        waistRoll = nil
+        waistAcceleration = nil
+        waistSampleAt = nil
+        waistFresh = false
     }
 
     private func send(_ payload: [String: Any], on task: URLSessionWebSocketTask? = nil) {

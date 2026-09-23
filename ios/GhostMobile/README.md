@@ -21,9 +21,9 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 
 - 后端仅在**真机**、已武装、串口就绪、腿板在线、数据率至少 50 Hz 且不处于 15 秒安全等待期时接受手机策略。助力 `gain ≤ 0.2`、`max ≤ 0.8 Nm`；阻尼 `gain ≤ 0.3`、`max ≤ 1.5 Nm`。控制仍经原有斜坡、限幅和急停链路。
 - 手机持续发送心跳，控制租约两秒到期。断线、App 后台、心跳超时、腿板状态变化或串口断流会结束手机租约并回到 `zero`；重新连接后需要用户再次选择动作。
-- 手机只显示收到的实时角度帧；断线清空曲线。真机固件可能有基础力矩和上电自检动作，上位机 `zero` 并非物理零力矩承诺。
+- 手机显示收到的实时髋角度、角速度、腰部姿态与加速度模长。腿板掉线、串口恢复或超过 1 秒没有腿部新帧时清空腿部曲线；服务状态超过 2 秒未更新时禁用新的施力选择。真机固件可能有基础力矩和上电自检动作，上位机 `zero` 并非物理零力矩承诺。
 - WebSocket 使用可信局域网内的明文 `ws://` 与随机口令，**不适合不可信 Wi-Fi、跨网访问或公网暴露**。正式远程使用须另做加密传输和部署审查。
 
 ## TestFlight 状态
 
-本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的安装包。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；`1.0 (1)`、扫码版 `1.0 (2)` 和预置连接版 `1.0 (3)` 均已处理，并分配给手动分发的内部群组 `Ghost iPhone 内测`（1 名测试员）。App Store Connect 显示 `1.0 (3)` 已在一台 iPhone 8 Plus 上安装。模拟器确认预置地址、启动后自动连接尝试、离线时控制按钮禁用；手机上的真实连接、控制和失联保护仍须现场验证。
+本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的安装包。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；`1.0 (1)`、扫码版 `1.0 (2)`、预置连接版 `1.0 (3)` 和曲线增强版 `1.0 (4)` 均已处理，并分配给手动分发的内部群组 `Ghost iPhone 内测`（1 名测试员）。App Store Connect 显示 `1.0 (4)` 已在一台 iPhone 8 Plus 上安装；用户现场确认手机与 Mac 正常通信，新曲线和断流提示仍待现场复核。手机施力和失联保护尚未现场验证。

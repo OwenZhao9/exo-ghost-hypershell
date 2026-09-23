@@ -24,7 +24,7 @@ targets:
       properties:
         CFBundleDisplayName: Ghost 外骨骼
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "3"
+        CFBundleVersion: "4"
         DemoPairingHost: "$(DEMO_HOST)"
         DemoPairingToken: "$(DEMO_TOKEN)"
         UILaunchScreen: {}
