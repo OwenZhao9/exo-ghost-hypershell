@@ -109,7 +109,7 @@ class App:
                     target = (directory / (path[len(prefix):] or 'index.html')).resolve()
                     # Only serve public assets, never feature Python modules or local data.
                     if (not target.is_relative_to(directory.resolve()) or
-                            target.suffix not in {'.html', '.js', '.css', '.svg', '.png', '.webp'} or
+                            target.suffix not in {'.html', '.js', '.css', '.svg', '.png', '.webp', '.wav'} or
                             not target.is_file()):
                         break
                     kind = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'

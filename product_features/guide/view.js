@@ -1,20 +1,57 @@
+import {createVoicePlayer} from './voice.js';
+
 export async function mount(root, {api, ui}) {
   ui.heading(root, '眼镜看一看', '连续拍照时，最新照片显示在最上方，识别结果标注在对应照片上。');
   const note = ui.el('p', '每条判断只对应那张照片，不能判断此刻道路是否可通行。', 'inline-note');
   root.append(note);
   const demo = ui.card('拍照演示'), demoState = ui.el('p', '', 'guide-demo-state');
   const demoDetail = ui.el('p', '', 'muted'), demoActions = ui.el('div', null, 'guide-demo-actions');
+  let voiceArmed = false, voiceStartedAt = 0, voiceError = '', playedCue = '', lastRunning = false;
+  const seenStates = new Map();
+  const voice = createVoicePlayer({
+    onError: message => {
+      voiceArmed = false;
+      voiceError = message;
+      showDemo(currentState);
+    },
+    onPlayed: cue => {
+      playedCue = {left: '向左', right: '向右', unknown: '无法判断', stop: '演示已停止'}[cue];
+      showDemo(currentState);
+    },
+  });
+  let currentState = null;
   const start = ui.button('开始拍照演示', async () => {
     start.disabled = true;
+    voiceArmed = true;
+    voiceStartedAt = Date.now() / 1000;
+    voiceError = '';
+    playedCue = '';
     try { showDemo(await api('/api/guide/demo/start', {})); }
-    catch (error) { demoDetail.textContent = error.message; start.disabled = false; }
+    catch (error) {
+      voiceArmed = false;
+      demoDetail.textContent = error.message;
+      start.disabled = false;
+    }
   }, 'button primary');
   const stop = ui.button('停止', async () => {
     stop.disabled = true;
-    try { showDemo(await api('/api/guide/demo/stop', {})); }
+    try {
+      const state = await api('/api/guide/demo/stop', {});
+      voiceArmed = false;
+      voice.interrupt('stop');
+      showDemo(state);
+    }
     catch (error) { demoDetail.textContent = error.message; stop.disabled = false; }
   }, 'button');
-  demoActions.append(start, stop); demo.append(demoState, demoDetail, demoActions); root.append(demo);
+  const enableVoice = ui.button('开启语音并试听', () => {
+    voiceArmed = true;
+    voiceStartedAt = Date.now() / 1000;
+    voiceError = '';
+    playedCue = '';
+    voice.interrupt('unknown');
+    showDemo(currentState);
+  }, 'button');
+  demoActions.append(start, stop, enableVoice); demo.append(demoState, demoDetail, demoActions); root.append(demo);
   const timeline = ui.card('拍照记录'), captures = ui.el('div', null, 'guide-capture-list');
   const captureEmpty = ui.el('p', '开始演示后，照片会依次显示在这里。', 'muted');
   captures.append(captureEmpty); timeline.append(captures); root.append(timeline);
@@ -29,7 +66,14 @@ export async function mount(root, {api, ui}) {
   let disposed = false, loading = false;
   const captureRows = new Map(), photoRows = new Map();
   function showDemo(state) {
+    if (!state) return;
+    currentState = state;
     if (!state.available) { demo.hidden = true; timeline.hidden = true; return; }
+    if (voiceArmed && lastRunning && !state.running) {
+      voice.enqueue('stop');
+      voiceArmed = false;
+    }
+    lastRunning = state.running;
     demo.hidden = false;
     start.disabled = state.running; stop.disabled = !state.running;
     const phase = state.phase === 'stopping' ? '正在停止' :
@@ -38,8 +82,11 @@ export async function mount(root, {api, ui}) {
       state.analysis_running ? `正在识别剩余 ${state.pending_count} 张` :
       state.phase === 'error' ? '需要重试' : '已停止';
     demoState.textContent = `${phase} · 本轮 ${state.captured_count}/${state.max_frames} 张`;
-    demoDetail.textContent = [state.error,
-      '语音录音尚未接入；请勿依据演示判断行走。'].filter(Boolean).join('\n');
+    demoDetail.textContent = [state.error, voiceError,
+      voiceArmed ? '语音已开启，将从电脑当前音频输出设备播放。' :
+        '点击“开始”会开启语音；也可试听。',
+      playedCue ? `最近语音：${playedCue}` : '',
+      '请勿依据演示判断行走。'].filter(Boolean).join('\n');
   }
 
   function showCaptures(history) {
@@ -99,6 +146,13 @@ export async function mount(root, {api, ui}) {
           }
         }
       }
+      const previousState = seenStates.get(shot.filename);
+      if (voiceArmed && shot.state === 'complete' && previousState !== 'complete' &&
+          (previousState !== undefined || shot.captured_at >= voiceStartedAt - 1)) {
+        voice.enqueue(shot.direction === 'left' || shot.direction === 'right' ?
+          shot.direction : 'unknown');
+      }
+      seenStates.set(shot.filename, shot.state);
     }
   }
 
@@ -108,8 +162,8 @@ export async function mount(root, {api, ui}) {
     try {
     const [data, state] = await Promise.all([api('/api/guide/photos'), api('/api/guide/demo')]);
     if (disposed) return;
-    showDemo(state);
     showCaptures(state.history || []);
+    showDemo(state);
     if (!data.capture_available) {
       photoEmpty.textContent = '尚未接入眼镜照片目录。';
       return;
@@ -143,5 +197,5 @@ export async function mount(root, {api, ui}) {
   }
   await load();
   const timer = setInterval(load, 2000);
-  return () => { disposed = true; clearInterval(timer); };
+  return () => { disposed = true; clearInterval(timer); voice.interrupt(); };
 }

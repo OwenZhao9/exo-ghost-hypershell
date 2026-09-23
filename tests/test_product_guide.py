@@ -3,6 +3,8 @@ import json
 import base64
 import threading
 import time
+import wave
+from pathlib import Path
 from urllib.error import HTTPError
 
 import pytest
@@ -14,6 +16,15 @@ from product_features.guide.vision import ENDPOINT, MODEL, analyze_demo_jpeg, de
 from product_features.guide.demo import DemoCapture
 
 JPEG = b'\xff\xd8\xff\xe0camera-frame\xff\xd9'
+
+
+def test_all_voice_cues_are_complete_wav_files():
+    audio = Path(__file__).resolve().parents[1] / 'product_features/guide/audio'
+    for name in ('left', 'right', 'unknown', 'stop'):
+        with wave.open(str(audio / f'{name}.wav'), 'rb') as clip:
+            assert clip.getnchannels() == 1
+            assert clip.getframerate() == 24000
+            assert clip.getnframes() > 12000
 
 
 class Reply(io.BytesIO):
