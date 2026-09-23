@@ -31,3 +31,7 @@ h1 { font-size: 22px; margin: 0; font-weight: 650; }
 .metric span { flex: 1; color: #a7bad4; }.metric strong { font-size: 17px; font-variant-numeric: tabular-nums; }.metric small { color: #8da2be; }
 #timeline { width: 100%; accent-color: #5caaff; }.play-row { display: flex; align-items: center; gap: 12px; margin-top: 9px; }.play-row span { color: #a7bad4; font-size: 12px; font-variant-numeric: tabular-nums; }
 @media (max-width: 800px) { .layout { display: block; }.topbar { min-height: 80px; }.stage { height: min(65vh, 720px); min-height: 400px; }.panel { border-left: 0; border-top: 1px solid #233149; }.top-actions { flex-direction: column; gap: 5px; } }
+body.embedded .layout { display: block; height: 100vh; min-height: 0; }
+body.embedded .topbar, body.embedded .panel { display: none; }
+body.embedded .stage { width: 100%; height: 100vh; min-height: 0; }
+body.embedded .stage-head, body.embedded .stage-foot { font-size: 12px; }

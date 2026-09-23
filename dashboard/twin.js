@@ -321,6 +321,9 @@ function animate(now) {
   renderer.render(scene, camera);
 }
 
+const launchOptions = new URLSearchParams(location.search);
+if (launchOptions.get('embed') === '1') document.body.classList.add('embedded');
 loadModel();
-connect();
+if (launchOptions.get('source') === 'replay') setMode('replay');
+else connect();
 requestAnimationFrame(animate);

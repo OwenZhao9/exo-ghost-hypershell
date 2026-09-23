@@ -226,7 +226,12 @@ function setState(s){
   el.textContent = bodyMode === 'sim' ? `仿真 · ${label}` : label;
 }
 fetch('/runtime-config.json', {cache:'no-store'})
-  .then(response => { if (!response.ok) throw new Error('服务配置不可用'); return response.json(); })
+  .then(response => {
+    if (response.ok) return response.json();
+    // 兼容仍在 8000/8765 运行的旧版真机服务；无须重启、重新占用串口。
+    if (response.status === 404 && location.port === '8000') return {ws_port: 8765, body: 'real'};
+    throw new Error('服务配置不可用');
+  })
   .then(config => {
     if (!Number.isInteger(config.ws_port) || config.ws_port < 1 || config.ws_port > 65535 ||
         !['real', 'sim'].includes(config.body)) throw new Error('服务配置无效');

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ghost · 现场演示</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="brand">GHOST <span>/ EXO</span></div>
+      <div class="hero-row">
+        <div>
+          <p class="eyebrow">HYPERSHELL X MAX S · 现场演示</p>
+          <h1>感知真实动作，<br><em>看见智能边界。</em></h1>
+          <p class="intro">移动外骨骼，观察现场传感器变化；旁边的 3D 视图播放一段标明来源的历史桌面记录。</p>
+        </div>
+        <div id="connection" class="connection waiting" role="status" aria-live="polite">正在连接真机数据</div>
+      </div>
+    </header>
+
+    <section class="facts" aria-label="实时设备状态">
+      <div class="fact"><span>当前状态</span><strong id="device-state">等待数据</strong><small id="state-detail">—</small></div>
+      <div class="fact"><span>数据流</span><strong id="sample-rate">—</strong><small>每秒传感器帧数</small></div>
+      <div class="fact"><span>左髋角度</span><strong id="left-angle">—</strong><small id="left-speed">关节数据待确认</small></div>
+      <div class="fact"><span>右髋角度</span><strong id="right-angle">—</strong><small id="right-speed">关节数据待确认</small></div>
+    </section>
+
+    <section class="agent-flow" aria-label="Ghost 三层 Agent 当前状态">
+      <div class="agent-card"><span>01 / 反射</span><strong id="reflex-state">等待数据</strong><small id="reflex-detail">逐帧检查运动边界</small></div>
+      <div class="agent-card"><span>02 / 直觉</span><strong id="decision-state">等待数据</strong><small id="decision-detail">根据运动窗口提出策略建议</small></div>
+      <div class="agent-card"><span>03 / 经验</span><strong id="memory-state">等待数据</strong><small id="memory-detail">异常时检索处置经验</small></div>
+    </section>
+
+    <section class="views">
+      <article class="live-card">
+        <div class="card-head"><div><p class="kicker">01 / LIVE SENSOR</p><h2>现场腰部姿态</h2></div><span class="source live-source">实时真机</span></div>
+        <p class="card-copy">曲线只使用当前设备收到的新数据。腰部与双腿关节分别显示状态。</p>
+        <div class="chart-wrap"><canvas id="waist-chart" aria-label="实时俯仰和横滚曲线"></canvas><div id="chart-empty" class="chart-empty">等待腰部数据…</div></div>
+        <div class="legend"><span><i class="pitch-dot"></i>俯仰 <strong id="pitch">—</strong></span><span><i class="roll-dot"></i>横滚 <strong id="roll">—</strong></span><span>航向 <strong id="yaw">—</strong></span></div>
+        <p id="leg-note" class="leg-note">等待关节数据。</p>
+      </article>
+      <article class="replay-card">
+        <div class="card-head"><div><p class="kicker">02 / RECORDED MOTION</p><h2>3D 外骨骼</h2></div><span class="source replay-source">历史桌面实测</span></div>
+        <p class="card-copy">依据真实桌面标定记录回放左右髋角度；模型动作与现场设备分开显示。</p>
+        <div class="replay-frame"><iframe src="twin.html?source=replay&amp;embed=1" title="历史桌面实测外骨骼 3D 回放" loading="eager"></iframe></div>
+        <p class="caption">3D 外形用于观察动作，不用于设备控制。</p>
+      </article>
+    </section>
+  </main>
+  <script src="demo.js" defer></script>
+</body>
+</html>
