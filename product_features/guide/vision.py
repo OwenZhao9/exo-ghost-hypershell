@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -26,12 +27,16 @@ DEMO_SYSTEM_PROMPT = (
     '你只分析一张静止照片，供有人看护的桌面演示使用。'
     '只能根据画面中直接可见的物体比较图像左、右两侧，不能判断真实道路是否安全。'
     '画面模糊、地面不可见、被遮挡、两侧相似或缺乏依据时必须给 unknown。'
+    '可以标出画面里清楚可见的物体位置；不要猜测看不清的物体。'
     '只输出 JSON 对象，不要包含行动命令或额外文字。'
 )
 DEMO_PROMPT = (
     '输出 {"direction":"left|right|unknown","confidence":0到1的数字,'
-    '"description":"一句简体中文画面事实"}。left/right 只表示画面该侧看起来更空，'
-    '不是让人朝该方向行走。不能确认时 direction=unknown，confidence=0。'
+    '"description":"一句简体中文画面事实",'
+    '"annotations":[{"label":"可见物体名","box":[x,y,w,h]}]}。'
+    'box 是相对整张图的 0 到 1 坐标，左上角为 (0,0)；最多标出 3 个确实可见的物体，'
+    '无法确认边界时返回空数组。left/right 只表示画面该侧看起来更空，'
+    '不是让人朝该方向行走。不能确认方向时 direction=unknown，confidence=0。'
 )
 
 
@@ -121,7 +126,7 @@ def analyze_demo_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) ->
     """Conservative image-side comparison; never a verified walking instruction."""
     raw = describe_jpeg(jpeg, key=key, opener=opener,
                         system_prompt=DEMO_SYSTEM_PROMPT, prompt=DEMO_PROMPT,
-                        max_tokens=512)
+                        max_tokens=1024)
     try:
         text = raw.strip()
         if text.startswith('```json\n') and text.endswith('\n```'):
@@ -132,13 +137,31 @@ def analyze_demo_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) ->
         description = value['description']
         if (direction not in {'left', 'right', 'unknown'} or
                 not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or
-                not 0 <= confidence <= 1 or not isinstance(description, str) or
+                not math.isfinite(confidence) or not 0 <= confidence <= 1 or
+                not isinstance(description, str) or
                 not 0 < len(description.strip()) <= 240):
             raise ValueError
     except (ValueError, TypeError, KeyError):
-        return {'direction': 'unknown', 'description': '画面判断不明确。'}
+        return {'direction': 'unknown', 'description': '画面判断不明确。',
+                'annotations': []}
     description = description.strip()
+    annotations = []
+    raw_annotations = value.get('annotations', [])
+    if isinstance(raw_annotations, list):
+        for item in raw_annotations[:3]:
+            if not isinstance(item, dict):
+                continue
+            label, box = item.get('label'), item.get('box')
+            if (not isinstance(label, str) or not 0 < len(label.strip()) <= 20 or
+                    not isinstance(box, list) or len(box) != 4 or
+                    any(not isinstance(n, (int, float)) or isinstance(n, bool) or
+                        not math.isfinite(n) for n in box)):
+                continue
+            x, y, w, h = box
+            if 0 <= x < 1 and 0 <= y < 1 and .03 <= w <= 1 and .03 <= h <= 1 and x + w <= 1 and y + h <= 1:
+                annotations.append({'label': label.strip(), 'box': [round(n, 4) for n in box]})
     if (confidence < 0.85 or any(word in description for word in
                                  ('模糊', '看不清', '无法确认', '不清楚', '不确定'))):
         direction = 'unknown'
-    return {'direction': direction, 'description': description}
+    return {'direction': direction, 'description': description,
+            'annotations': annotations}

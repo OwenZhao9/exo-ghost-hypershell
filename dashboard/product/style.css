@@ -111,8 +111,13 @@ canvas { display: block; width: 100%; height: 190px; }
 .guide-capture-list { display: grid; }
 .guide-capture-item { display: grid; grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); gap: 24px; padding: 22px 0; border-top: 1px solid var(--line); }
 .guide-capture-item:first-child { border-top: 0; padding-top: 8px; }
-.guide-capture-image { display: block; width: 100%; max-height: 280px; object-fit: contain; background: #111; border-radius: 8px; }
+.guide-capture-visual { position: relative; width: min(100%, 240px); align-self: start; }
+.guide-capture-image { display: block; width: 100%; height: auto; background: #111; border-radius: 8px; }
 .guide-capture-image[hidden] { display: none; }
+.guide-annotation-layer { position: absolute; inset: 0; pointer-events: none; }
+.guide-annotation-badge { position: absolute; top: 8px; left: 8px; padding: 5px 8px; border-radius: 4px; background: #102d40e8; color: #fff; font-size: 12px; font-weight: 700; }
+.guide-annotation-box { position: absolute; box-sizing: border-box; border: 2px solid #57d0ff; background: #57d0ff20; border-radius: 3px; }
+.guide-annotation-label { position: absolute; top: 0; left: 0; max-width: 100%; padding: 2px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #103a52ed; color: #fff; font-size: 11px; font-weight: 650; }
 .guide-capture-body h3 { margin: 0 0 12px; font-size: 18px; }
 .guide-capture-body p { margin: 8px 0; overflow-wrap: anywhere; }
 .guide-capture-result { color: var(--ink); font-size: 17px; font-weight: 650; }
@@ -156,7 +161,6 @@ summary { min-height: 44px; padding: 12px 0; color: var(--accent); cursor: point
 }
 @media(max-width:600px) {
   .guide-capture-item { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .guide-capture-image { max-height: 360px; }
 }
 @media(max-width:650px) {
   .top { padding: 16px 18px; } .brand { font-size: 20px; }

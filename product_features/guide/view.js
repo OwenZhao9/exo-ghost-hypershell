@@ -1,5 +1,5 @@
 export async function mount(root, {api, ui}) {
-  ui.heading(root, '眼镜看一看', '连续拍照时，每张照片和识别结果依次排列。');
+  ui.heading(root, '眼镜看一看', '连续拍照时，最新照片显示在最上方，识别结果标注在对应照片上。');
   const note = ui.el('p', '每条判断只对应那张照片，不能判断此刻道路是否可通行。', 'inline-note');
   root.append(note);
   const demo = ui.card('拍照演示'), demoState = ui.el('p', '', 'guide-demo-state');
@@ -32,8 +32,11 @@ export async function mount(root, {api, ui}) {
     if (!state.available) { demo.hidden = true; timeline.hidden = true; return; }
     demo.hidden = false;
     start.disabled = state.running; stop.disabled = !state.running;
-    const phase = {idle: '已停止', capturing: '正在拍照', analyzing: '正在识别',
-      scanning: '正在连接眼镜', waiting: '等待下一张', stopping: '正在停止', error: '需要重试'}[state.phase] || '等待中';
+    const phase = state.phase === 'stopping' ? '正在停止' :
+      state.capture_running && state.pending_count ? `正在拍照，同时识别 ${state.pending_count} 张` :
+      state.capture_running ? '正在拍照' :
+      state.analysis_running ? `正在识别剩余 ${state.pending_count} 张` :
+      state.phase === 'error' ? '需要重试' : '已停止';
     demoState.textContent = `${phase} · 本轮 ${state.captured_count}/${state.max_frames} 张`;
     demoDetail.textContent = [state.error,
       '语音录音尚未接入；请勿依据演示判断行走。'].filter(Boolean).join('\n');
@@ -49,11 +52,14 @@ export async function mount(root, {api, ui}) {
         const image = ui.el('img');
         image.className = 'guide-capture-image'; image.alt = `眼镜拍摄的第 ${captureRows.size + 1} 张照片`;
         image.hidden = true;
+        const overlay = ui.el('div', null, 'guide-annotation-layer');
+        const visual = ui.el('div', null, 'guide-capture-visual'); visual.append(image, overlay);
         const message = ui.el('p', '正在读取照片。', 'muted');
         const detail = ui.el('p', '', 'muted');
         const body = ui.el('div', null, 'guide-capture-body'); body.append(title, message, detail);
-        card.append(image, body); captures.append(card);
-        row = {message, detail}; captureRows.set(shot.filename, row);
+        card.append(visual, body); captures.prepend(card);
+        row = {message, detail, overlay, annotationSignature: null};
+        captureRows.set(shot.filename, row);
         api('/api/guide/image', {filename: shot.filename}).then(data => {
           if (!disposed) { image.src = data.src; image.hidden = false; }
         }).catch(() => {
@@ -63,12 +69,36 @@ export async function mount(root, {api, ui}) {
       const direction = shot.direction === 'left' ? '画面左侧较空（演示）' :
         shot.direction === 'right' ? '画面右侧较空（演示）' : '无法判断方向';
       row.message.className = shot.state === 'complete' ? 'guide-capture-result' : 'muted';
-      row.message.textContent = shot.state === 'analyzing' ? '正在识别这张照片…' :
+      row.message.textContent = shot.state === 'queued' ? '等待识别这张照片…' :
+        shot.state === 'analyzing' ? '正在识别这张照片…' :
         shot.state === 'interrupted' ? '识别未完成' :
         shot.state === 'error' ? '识别失败' : direction;
       row.detail.textContent = [shot.description, shot.error,
         `拍照 ${shot.capture_seconds} 秒`,
         shot.analysis_seconds != null ? `识别 ${shot.analysis_seconds} 秒` : ''].filter(Boolean).join(' · ');
+      const signature = JSON.stringify([shot.state, shot.direction, shot.annotations]);
+      if (row.annotationSignature !== signature) {
+        row.annotationSignature = signature;
+        row.overlay.replaceChildren();
+        if (shot.state === 'complete' && shot.analysis_seconds != null) {
+          const badge = shot.direction === 'left' ? '左侧较空' :
+            shot.direction === 'right' ? '右侧较空' : '无法判断';
+          const annotations = Array.isArray(shot.annotations) ? shot.annotations : [];
+          if (!annotations.length) row.overlay.append(ui.el('span', badge, 'guide-annotation-badge'));
+          for (const item of annotations) {
+            if (!item || typeof item !== 'object' || typeof item.label !== 'string') continue;
+            const box = item.box;
+            if (!Array.isArray(box) || box.length !== 4 || !box.every(Number.isFinite)) continue;
+            const [x, y, w, h] = box;
+            if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > 1 || y + h > 1) continue;
+            const marker = ui.el('div', null, 'guide-annotation-box');
+            marker.style.left = `${x * 100}%`; marker.style.top = `${y * 100}%`;
+            marker.style.width = `${w * 100}%`; marker.style.height = `${h * 100}%`;
+            marker.append(ui.el('span', item.label, 'guide-annotation-label'));
+            row.overlay.append(marker);
+          }
+        }
+      }
     }
   }
 
@@ -105,7 +135,7 @@ export async function mount(root, {api, ui}) {
         }
       }, 'button primary');
       button.disabled = !data.vision_available;
-      row.append(details, button); list.append(row); photoRows.set(photo.filename, row);
+      row.append(details, button); list.prepend(row); photoRows.set(photo.filename, row);
     }
     } catch (error) {
       if (!disposed) demoDetail.textContent = error.message;

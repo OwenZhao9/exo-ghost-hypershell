@@ -1,6 +1,7 @@
 import io
 import json
 import base64
+import threading
 import time
 from urllib.error import HTTPError
 
@@ -106,6 +107,72 @@ pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
     assert restored.status()['history'] == state['history']
 
 
+def test_capture_overlaps_previous_photo_recognition(tmp_path, monkeypatch):
+    shots = tmp_path / 'shots'
+    shots.mkdir()
+    fake = tmp_path / 'luma'
+    fake.write_text('''#!/usr/bin/env python3
+import pathlib, sys, time
+time.sleep(.12)
+pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
+''')
+    fake.chmod(0o700)
+
+    def analyze(_):
+        time.sleep(.55)
+        return {'direction': 'unknown', 'description': '画面较暗。',
+                'annotations': [{'label': '桌子', 'box': [.2, .3, .4, .2]}]}
+
+    monkeypatch.setattr('product_features.guide.demo.analyze_demo_jpeg', analyze)
+    demo = DemoCapture(fake, shots, 'E06-0194', recognize=True,
+                       pause_seconds=.02, max_frames=2)
+    demo.start()
+    until = time.monotonic() + 5
+    while demo.status()['running'] and time.monotonic() < until:
+        time.sleep(.02)
+    history = demo.status()['history']
+    assert len(history) == 2
+    assert history[0]['analysis_started_at'] < history[1]['captured_at']
+    assert history[1]['capture_started_at'] < history[0]['analyzed_at']
+    assert all(item['state'] == 'complete' for item in history)
+    assert history[0]['annotations'][0]['label'] == '桌子'
+    demo.close()
+
+
+def test_stop_skips_photos_not_yet_sent_for_recognition(tmp_path, monkeypatch):
+    shots = tmp_path / 'shots'
+    shots.mkdir()
+    fake = tmp_path / 'luma'
+    fake.write_text('''#!/usr/bin/env python3
+import pathlib, sys
+pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
+''')
+    fake.chmod(0o700)
+    entered, release = threading.Event(), threading.Event()
+    calls = []
+
+    def analyze(_):
+        calls.append(1)
+        entered.set()
+        release.wait(3)
+        return {'direction': 'unknown', 'description': '画面较暗。', 'annotations': []}
+
+    monkeypatch.setattr('product_features.guide.demo.analyze_demo_jpeg', analyze)
+    demo = DemoCapture(fake, shots, 'E06-0194', recognize=True,
+                       pause_seconds=0, max_frames=3)
+    demo.start()
+    until = time.monotonic() + 5
+    while (len(demo.status()['history']) < 3 or not entered.is_set()) and time.monotonic() < until:
+        time.sleep(.02)
+    assert len(demo.status()['history']) == 3
+    demo.stop()
+    release.set()
+    demo.close()
+    assert calls == [1]
+    assert [item['state'] for item in demo.status()['history']] == [
+        'complete', 'interrupted', 'interrupted']
+
+
 def test_demo_direction_falls_back_when_uncertain():
     def reply(value, fenced=False):
         content = json.dumps(value)
@@ -120,6 +187,12 @@ def test_demo_direction_falls_back_when_uncertain():
     assert analyze_demo_jpeg(JPEG, key='test-key', opener=reply({
         'direction': 'right', 'confidence': .9, 'description': '画面左边有箱子，右边地面可见。'
     }, fenced=True))['direction'] == 'right'
+    annotated = analyze_demo_jpeg(JPEG, key='test-key', opener=reply({
+        'direction': 'unknown', 'confidence': 0, 'description': '画面里有一张桌子。',
+        'annotations': [{'label': '桌子', 'box': [.1, .2, .3, .4]},
+                        {'label': '越界', 'box': [.9, .2, .3, .4]}]
+    }))
+    assert annotated['annotations'] == [{'label': '桌子', 'box': [.1, .2, .3, .4]}]
 
 
 def test_gateway_request_contains_image_and_keeps_key_out_of_body():

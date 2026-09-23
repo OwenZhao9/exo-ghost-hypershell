@@ -42,19 +42,19 @@
 | 行走档案 | `product_features/records/` | 收录已有设备 CSV；仿真记录不进入产品档案。真机桌面、穿戴与来源未确认的记录分别标识，输出有效记录/活动时间、双侧幅度及指令做功估计。不能推断真实肌力、省力比例。 |
 | 个人记忆 | `product_features/memory/` | 保存偏好、参数版本并导出 JSON。 |
 | 成长徽章 | `product_features/growth/` | 只基于完整真实穿戴记录；桌面、仿真、重复、静止或急停记录不计进度。 |
-| 眼镜看一看（试验） | `product_features/guide/` | 从指定的 Luma 眼镜照片目录列出 JPEG。手动选图仍可请求 EvoMap 描述。`feat/glasses-demo-GPT` 的连续拍照 Demo 在本机页面手动启动后，逐张拍照并把每张画面、时间、EvoMap 文字判断依序追加到拍照记录，不覆盖上一张；不清楚时显示“无法判断”。每轮最多 10 张，失败 3 次停止，随时可手动停止。没有真人录音时不播放语音，不提供实际导盲或外骨骼动作。 |
+| 眼镜看一看（试验） | `product_features/guide/` | 从指定的 Luma 眼镜照片目录列出 JPEG。手动选图仍可请求 EvoMap 描述。`feat/glasses-demo-GPT` 的连续拍照 Demo 在本机页面手动启动后，拍照与上一张的 EvoMap 识别同时进行；每张画面、时间、状态和判断保留在列表，最新照片插在最上方。识别完成后在对应照片上叠加方向状态及模型返回的可见物体框；不清楚时显示“无法判断”，不猜测物体位置。每轮最多 10 张，失败 3 次停止，随时可手动停止。没有真人录音时不播放语音，不提供实际导盲或外骨骼动作。 |
 
 **产品界面**：`dashboard/product/style.css`、`app.js` 和 `product_features/modes/view.js` 采用参考 DJI Fly 官网的浅色工作区、常驻功能导航、设备正面图、显眼的当前数据状态、紧凑的真实穿戴记录统计及分区清晰的模式/曲线区域。首页设备图复用项目已获准使用的 `site/assets/hypershell-front.webp`，不作为设备状态。首页状态仅使用设备服务当前消息，来源未知时明确标识；曲线无新帧时仍为空，不绘制示例数据。样式更新没有修改控制条件、设备命令或历史记录计算。设计参考与取舍见 `docs/product-ui-reference.md`。
 
 眼镜照片描述使用 EvoMap Gateway 的 `evomap-gemini-3.1-pro-preview`。已创建仅绑定该模型、30 天到期的 Key。2026-09-23 已从当前 E06-0194 真机经 BLE 握手、拍照并保存 368×480 JPEG，再由产品页面手动发送这张照片并收到完整中文描述。眼镜音频输出、连续环境感知和实际引路尚未实现。跨设备策略迁移、康复与保险结论也未实现。
 
-连续拍照 Demo 由 `product_features/guide/demo.py` 顺序调用独立 Luma 拍照程序，后台线程不占外骨骼串口。`--glasses-bin`、`--glasses-unit` 与 `--guide-demo-upload` 均需显式配置；没有上传开关时只保存本机照片。页面每 2 秒检查演示状态，按拍摄顺序在页面底部追加照片卡片并更新各自的识别结果；不会用新照片替换旧照片。卡片元数据和文字判断保存在本分支 Git 忽略的本地产品数据库，照片文件仍在眼镜照片目录；重启产品服务后可恢复列表。旧版本在本次更新之前采集的照片可在照片库查看，但当时没有保存自动识别文字，不能补回。页面通过本机 API 按文件名读取图像，`site/` 不接收照片。EvoMap 返回严格校验的 JSON；低置信度、画面模糊、格式异常或服务失败都不给左/右结论。左/右仅表示照片中看起来较空的一侧，不能作为移动指令。Chrome 已验收三张真机照片在桌面及 390px 手机视口纵向保留、手动停止和页面刷新。这不是实时视频流，未完成实际导盲验证。
+连续拍照 Demo 由 `product_features/guide/demo.py` 的采图和识别两个后台线程运行，不占外骨骼串口。采图按顺序进行；新照片进入队列后，单个识别线程按拍摄顺序请求 EvoMap，采图线程无需等识别结束。`--glasses-bin`、`--glasses-unit` 与 `--guide-demo-upload` 均需显式配置；没有上传开关时只保存本机照片。页面每 2 秒检查状态，新照片插入列表最上方，并在识别完成后更新原卡片、叠加状态和有依据的物体位置框；旧卡片保留，原 JPEG 不修改。照片库也将最新照片排在最上方。队列中未发送的照片在手动停止后标记中断，不继续上传。卡片元数据、文字判断和归一化标注坐标保存在本分支 Git 忽略的本地产品数据库，照片文件仍在眼镜照片目录；重启产品服务后可恢复列表。旧版本在本次更新之前采集的照片可在照片库查看，但当时没有保存自动识别文字，不能补回。页面通过本机 API 按文件名读取图像，`site/` 不接收照片。EvoMap 返回严格校验的 JSON；低置信度、画面模糊、格式异常或服务失败都不给左/右结论。左/右仅表示照片中看起来较空的一侧，不能作为移动指令。真机并行时序和 Chrome 照片标注已验收；这不是实时视频流，未完成实际导盲验证。
 
 ### 本机入口与兼容性
 
 - **入口**：产品工作目录执行 `uv run python -m product.server`。集成分支默认端口 8110，各功能分支自动使用 8100–8105；数据默认存储在各自目录的 `data/product/product.db`。
 - **眼镜照片入口**：使用 `--glasses-dir /Users/owenzhao/eyeGalss/shots` 只读列出 Luma 眼镜采集的 JPEG。Gateway Key 保存在本机 Git 忽略的 `data/product/evomap_gateway.key`（0600）；启动时执行 `EVOMAP_GATEWAY_API_KEY="$(cat data/product/evomap_gateway.key)" uv run python -m product.server --glasses-dir /Users/owenzhao/eyeGalss/shots`，按需附加既有 `--recordings-dir` 和 `--device-ws` 参数。点击“描述这张照片”才会将所选照片发送给 EvoMap。照片、Key 和描述结果不写入展示网页或 Git。
-- **眼镜 Demo 入口**：在独立工作区启动产品服务时，额外指定 `--glasses-bin /Users/owenzhao/eyeGalss/luma-core/target/release/examples/luma --glasses-unit E06-0194 --guide-demo-upload`，然后在“眼镜看一看”页手动开始。照片目录持续增长，不自动删除用户照片；每轮最多 10 张。页面停止或服务器退出后不再启动新拍照。新照片可自动发送到已授权的 EvoMap，返回结果只在本机页面显示。真人录音尚未提供，语音提示未接入。
+- **眼镜 Demo 入口**：在独立工作区启动产品服务时，额外指定 `--glasses-bin /Users/owenzhao/eyeGalss/luma-core/target/release/examples/luma --glasses-unit E06-0194 --guide-demo-upload`，然后在“眼镜看一看”页手动开始。照片目录持续增长，不自动删除用户照片；每轮最多 10 张。页面停止或服务器退出后不再启动新拍照；已发出的识别请求可能在停止后完成，未发送的排队照片不会上传。新照片可自动发送到已授权的 EvoMap，返回结果只在本机页面显示。真人录音尚未提供，语音提示未接入。
 - **展示页代码入口**：本分支的 `site/` 产品代码链接指向 `feat/glasses-demo-GPT`，以便直接查看已实现的演示代码；展示网页仍只在本机运行。
 - **独立运行**：产品服务不打开串口、不启动仿真。通过 `--recordings-dir` 只读收录已有设备记录；指定 `--device-ws` 后订阅既有控制服务。默认不发送控制命令。
 - **控制条件**：启用 `--control` 后，设备必须明确报告 `body=real`、状态 `ARMED`、数据流至少 50 Hz，且传感器与状态消息保持新鲜。断线、静默期、急停或来源不明时拒绝开始运动；松劲、急停保留独立停止路径。
