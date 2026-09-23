@@ -354,7 +354,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                     scale=stats["scale"], reflex=session.monitor.scale_detail(),
                     memory=None if memory is None else memory.snapshot(),
                     decision=None if decider is None else decider.snapshot())
-                base["body"] = "sim" if hasattr(bridge, "set_gait") else "real"
+                base["body"] = "real" if isinstance(bridge, ExoBridge) else "sim"
+                base["profile"] = prof.name
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(status_file, status.full_snapshot(
