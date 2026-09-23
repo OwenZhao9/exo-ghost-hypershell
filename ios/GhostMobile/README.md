@@ -26,4 +26,4 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 
 ## TestFlight 状态
 
-本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；首版 TestFlight `1.0 (1)` 与扫码版 `1.0 (2)` 均已处理并分配给手动分发的内部群组 `Ghost iPhone 内测`。预置连接版 `1.0 (3)` 正在验证和上传。用户的 iPhone 8 安装、真实连接、控制和失联保护仍须现场验证。
+本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的安装包。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；`1.0 (1)`、扫码版 `1.0 (2)` 和预置连接版 `1.0 (3)` 均已处理，并分配给手动分发的内部群组 `Ghost iPhone 内测`（1 名测试员）。`1.0 (3)` 已在模拟器检查预置地址、启动后自动连接尝试、离线时控制按钮禁用；用户的 iPhone 8 安装、真实连接、控制和失联保护仍须现场验证。

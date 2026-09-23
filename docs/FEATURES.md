@@ -25,7 +25,7 @@
 - **入口与状态**：`ios/GhostMobile/` 是最低 iOS 16 的 SwiftUI App。已完成本机编译、发行签名 IPA 导出及 TestFlight 内部测试分发；尚未在用户的 iPhone 8 上安装或实测。Mac 控制服务仍独占串口，手机使用同一局域网接收真实帧、显示双侧角度曲线并发送受限命令。
 - **配对和数据**：演示版 `1.0 (3)` 用 `tools/prepare_mobile_demo.py` 将这台 Mac 的当前局域网地址和口令写入本机私有 `DemoPairing.local.xcconfig`，发行构建时注入 App。首次启动自动导入口令到 iPhone Keychain、地址到本机设置，并尝试连接；回前台可自动重连。地址变化时可在“连接设置”中修改，或重新生成配置并构建。源码和 Git 不包含口令，但发行 IPA 可提取，分发范围限获授权的内部群组。前版 `1.0 (2)` 的二维码工具仍可在 Mac 端生成，当前 App 已移除扫码入口。`runtime/mobile.py` 以 0600 权限保存 Mac 口令，`tools/webhub.py` 要求非本机 WebSocket 先配对，仅广播已有真实数据并拒绝未配对或越权命令。
 - **控制约束**：手机只提供低增益阻尼、轻助力、松劲和急停；无远程重新武装、保持角度及恒定力矩。`runtime/service.py` 仍检查真机来源、已武装、腿板在线、≥50 Hz 和静默期。手机租约每 2 秒必须收到心跳，断线或过期会清掉策略并回到 `zero`。操作者须继续遵守 `docs/safety-rules.md`。
-- **验证与未完成**：`tests/test_mobile.py` 覆盖配对、扫码载荷、鉴权、白名单和断线租约；扫码版完整 Python 回归 133 项通过。Xcode 26.4 构建的 `1.0 (1)` 和扫码版 `1.0 (2)` 均已上传 TestFlight 并分配给只含账户持有人的内部测试群组。二维码已用 Mac Vision 识别验证，相机权限拒绝路径已在模拟器检查。仍缺 iPhone 8 实机扫描、真实连接和控制验证。局域网 WebSocket 仍为明文，限可信 Wi-Fi，不支持公网远程控制。具体操作见 [iPhone 工程说明](../ios/GhostMobile/README.md)。
+- **验证与未完成**：`tests/test_mobile.py` 覆盖配对、私有构建配置、鉴权、白名单和断线租约；本版完整 Python 回归 134 项通过。Xcode 26.4 构建的 `1.0 (3)` 已完成发行签名、上传和 Apple 处理，分配给只有账户持有人的内部测试群组；模拟器确认预置地址和启动后自动连接尝试，离线时控制按钮禁用。仍缺 iPhone 8 实机安装、真实连接和控制验证。局域网 WebSocket 仍为明文，限可信 Wi-Fi，不支持公网远程控制。具体操作见 [iPhone 工程说明](../ios/GhostMobile/README.md)。
 
 ## Ghost 三层 Agent
 
