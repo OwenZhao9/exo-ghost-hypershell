@@ -37,3 +37,9 @@ uv run python -m product.server --recordings-dir /path/to/exo-ghost/data --devic
 `node --test tests/product-device.test.mjs`：3 项通过，涵盖启动不发命令、数据过期/来源不明/只读状态拒绝施力、参数边界和急停。
 Chrome 验证页面导航、实时数据接收、真实桌面 CSV 收录及来源标识。
 没有为了验证新页面而向外骨骼施力，也没有替换正在运行的控制服务。
+
+## 文档与本地展示页
+
+已将首版功能及其验证范围同步到 `docs/FEATURES.md`、`CHANGELOG.md` 和 `site/`。
+展示页已在 Chrome 检查桌面布局、390px 移动端产品区域、3D 模型加载和历史桌面记录播放/暂停。
+网页仅在本机使用；后续功能更新也需要同步上述文件并进行本机检查，不部署到公网服务。
