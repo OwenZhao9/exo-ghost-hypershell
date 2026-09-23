@@ -38,6 +38,9 @@ test("never treats simulation, leg dropout, or stale samples as live movement", 
   assert.deepEqual(liveState({ body: "real", state: "TRIPPED" }, frame, 20, true), {
     label: "设备急停 · 实时读数", level: "warn", usable: true,
   });
+  assert.deepEqual(liveState({ body: "real", state: "TRIPPED", legs_offline: true }, frame, 20, true), {
+    label: "急停锁存 · 等待人工恢复", level: "warn", usable: false,
+  });
 });
 
 test("mode controls require verified real source, profile and fresh armed data", () => {
@@ -45,6 +48,8 @@ test("mode controls require verified real source, profile and fresh armed data",
     frame: parseFrame(sensor), frameAgeMs: 20, statusAgeMs: 20,
     connected: true, confirmed: true };
   assert.equal(controlState(base).ready, true);
+  assert.match(controlState({ ...base, frame: null,
+    status: { ...base.status, state: "TRIPPED" } }).reason, /急停锁存/);
   for (const change of [
     { connected: false }, { frameAgeMs: 1000 }, { statusAgeMs: 3000 },
     { confirmed: false }, { status: { ...base.status, body: "sim" } },

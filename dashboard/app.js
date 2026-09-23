@@ -184,14 +184,38 @@ host_el.addEventListener('pointerleave', () => { if (!paused) cursor = null; });
 
 // ---------- WebSocket ----------
 let ws;
+let lastSampleAt = 0;
+function clearLiveData(){
+  T.length=0; V.length=0; cursor=null;
+  $('vL').textContent='—'; $('vR').textContent='—'; $('vT').textContent='—';
+}
+function updateConnection(){
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const fresh = lastSampleAt > 0 && performance.now() - lastSampleAt < 1500;
+  if (status?.state === 'TRIPPED' || status?.state === 'RECONN' ||
+      status?.state === 'OFFLINE' || !fresh){
+    $('conn').textContent = status?.state === 'TRIPPED' ? '急停锁存，等待人工恢复'
+      : status?.state === 'RECONN' ? '串口重连中，等待真机数据'
+      : '等待真机数据';
+    $('dot').classList.remove('on');
+    clearLiveData();
+    return;
+  }
+  $('conn').textContent = status?.state === 'LEGS_OFF' ? '腰部有实时数据，腿板无效'
+    : status?.state === 'QUIET' ? '安全等待，实时数据已连接' : '实时数据已连接';
+  $('dot').classList.add('on');
+}
+setInterval(updateConnection, 250);
 function connect(){
   ws = new WebSocket(WS);
-  ws.onopen = () => { $('conn').textContent='已连接'; $('dot').classList.add('on'); };
-  ws.onclose = () => { $('conn').textContent='断开，重连中…'; $('dot').classList.remove('on'); setState('OFFLINE'); T.length=0; V.length=0; setTimeout(connect, 1000); };
+  ws.onopen = updateConnection;
+  ws.onclose = () => { status=null; lastSampleAt=0; $('conn').textContent='断开，重连中…'; $('dot').classList.remove('on'); setState('OFFLINE'); clearLiveData(); setTimeout(connect, 1000); };
   ws.onerror = () => ws.close();
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
     if (m.k === 's'){
+      lastSampleAt = performance.now();
+      updateConnection();
       if (paused) return;
       if (T.length && m.t - T[T.length-1] > 0.3){ T.length=0; V.length=0; cursor=null; }
       T.push(m.t); V.push(m.v);
@@ -206,6 +230,7 @@ function connect(){
         $('vL').textContent='—'; $('vR').textContent='—'; $('vT').textContent='—';
       }
       status = m; setState(m.state);
+      updateConnection();
       $('vP').textContent = {zero:'松劲', resist:'阻尼', assist:'助力', hold:'位置保持', torque:'恒定力矩'}[m.policy] || m.policy;
       $('vHz').textContent = m.hz.toFixed(0)+' Hz';
       $('vW').textContent = (m.work_J>=0?'+':'')+m.work_J.toFixed(1);

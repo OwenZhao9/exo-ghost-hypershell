@@ -73,8 +73,12 @@ function updateMetrics(pose) {
 function applyPose(pose) {
   updateMetrics(pose);
   if (!pose || !rig) return;
-  if (!neutral) neutral = { ldeg: pose.ldeg, rdeg: pose.rdeg,
-    pitch: pose.pitch, roll: pose.roll, yaw: pose.yaw };
+  if (!neutral) {
+    const upright = mode === 'live' ? rig.config.upright : null;
+    neutral = { ldeg: Number.isFinite(upright?.left) ? upright.left : pose.ldeg,
+      rdeg: Number.isFinite(upright?.right) ? upright.right : pose.rdeg,
+      pitch: pose.pitch, roll: pose.roll, yaw: pose.yaw };
+  }
   const { config, root, left, right } = rig;
   const sign = (mode === 'sim' && config.sim_sign) || config.sign || { left: -1, right: 1 };
   const axis = config.axis || 'z';
@@ -84,7 +88,8 @@ function applyPose(pose) {
     root.rotation.set((pose.pitch - neutral.pitch) * RAD,
       (pose.yaw - neutral.yaw) * RAD, (pose.roll - neutral.roll) * RAD, 'YXZ');
   }
-  $('pose-note').textContent = '双髋角度驱动 · 相对初始姿态';
+  $('pose-note').textContent = mode === 'live'
+    ? '双髋角度驱动 · 相对直立基准' : '双髋角度驱动 · 相对记录起点';
 }
 
 function attachPart(root, spec) {
@@ -188,6 +193,13 @@ function updateChannelState() {
     setState('数据来源不匹配', 'bad');
     $('source-detail').textContent = '当前端口的数据来源与所选模式不一致，请检查服务端口。';
     $('pose-note').textContent = '模型停止更新';
+    updateMetrics(null);
+    return;
+  }
+  if (deviceState === 'TRIPPED') {
+    setState('急停锁存', 'bad');
+    $('source-detail').textContent = '设备已停止输出；在曲线控制台确认安全后手动重新武装。';
+    $('pose-note').textContent = '等待新的有效遥测 · 模型停止更新';
     updateMetrics(null);
     return;
   }

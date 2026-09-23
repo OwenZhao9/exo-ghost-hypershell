@@ -402,6 +402,9 @@ async function startViewer() {
     if (!configResponse.ok || !replayResponse.ok)
       throw new Error("展示数据暂时不可用");
     const config = await configResponse.json();
+    if (!Number.isFinite(config.upright?.left) || !Number.isFinite(config.upright?.right))
+      throw new Error("直立基准配置无效");
+    neutral.live = { ...config.upright };
     replay = await replayResponse.json();
     const loader = new GLTFLoader();
     const [gltf, humanGltf] = await Promise.all([
@@ -477,6 +480,8 @@ async function startViewer() {
 }
 
 loadButton.addEventListener("click", startViewer);
+// The local live view is ready before the device powers on; fresh frames drive it on arrival.
+startViewer();
 liveButton.addEventListener("click", () => {
   mode = "live";
   playing = false;
@@ -495,7 +500,7 @@ humanButton.addEventListener("click", () => {
 });
 alignButton.addEventListener("click", () => {
   if (!viewer || !live.frame || mode !== "live") return;
-  neutral.live = { left: live.frame.left, right: live.frame.right };
+  neutral.live = { ...viewer.config.upright };
   yawFollower.align(live.frame.yaw, live.frame.receivedAt);
   showFrame(live.frame, "live");
 });

@@ -27,6 +27,8 @@ export function liveState(status, frame, ageMs, connected) {
   if (!connected) return { label: "等待设备连接", level: "offline", usable: false };
   if (status.body === "sim")
     return { label: "当前服务为仿真", level: "offline", usable: false };
+  if (status.state === "TRIPPED" && (!frame || ageMs >= STALE_MS || status.legs_offline))
+    return { label: "急停锁存 · 等待人工恢复", level: "warn", usable: false };
   if (status.state === "LEGS_OFF" || status.legs_offline)
     return { label: "腿板数据无效", level: "warn", usable: false };
   if (status.state === "RECONN" || status.state === "OFFLINE")
@@ -43,6 +45,8 @@ export function liveState(status, frame, ageMs, connected) {
 }
 
 export function controlState({ status, frame, frameAgeMs, statusAgeMs, connected, confirmed }) {
+  if (connected && status.state === "TRIPPED")
+    return { ready: false, reason: "急停锁存：请在实时曲线控制台确认安全后重新武装" };
   if (!connected || !frame || !Number.isFinite(frameAgeMs) ||
       !Number.isFinite(statusAgeMs) || frameAgeMs >= 1000 || statusAgeMs >= 3000)
     return { ready: false, reason: "等待新鲜的设备数据" };
