@@ -1,7 +1,7 @@
 {
   "model": "assets/exoskeleton.glb",
   "axis": "z",
-  "sign": { "left": -1, "right": 1 },
+  "sign": { "left": 1, "right": -1 },
   "sim_sign": { "left": 1, "right": 1 },
   "use_imu": false,
   "left": {
