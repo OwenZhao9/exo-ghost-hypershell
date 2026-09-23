@@ -23,3 +23,6 @@ CLAUDE.local.md
 AGENTS.md
 
 .DS_Store
+
+# Each product worktree owns its local database; never commit personal records.
+data/product/
