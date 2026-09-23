@@ -23,12 +23,19 @@ export class Device extends EventTarget {
     ws.onerror = () => ws.close();
   }
   get fresh() { return this.ws?.readyState === WebSocket.OPEN && Date.now() - this.sampleAt < 1000 && Date.now() - this.statusAt < 3000; }
-  get ready() { return this.fresh && this.status?.state === 'ARMED' && this.status?.body === 'real'; }
+  get ready() { return this.fresh && this.status?.state === 'ARMED' && this.status?.body === 'real' && this.status?.hz >= 50; }
   send(command) {
     if (!this.config.control_enabled) throw new Error('当前页面用于查看，请在控制台操作设备');
     if (this.ws?.readyState !== WebSocket.OPEN) throw new Error('设备连接已断开');
     const stop = ['zero', 'estop'].includes(command.op);
     if (!stop && !this.ready) throw new Error('设备尚未就绪，请等待连接和安全检查完成');
+    if (!stop) {
+      const {op, policy, gain, max} = command;
+      if (op !== 'policy' || !['assist', 'resist'].includes(policy) ||
+          !Number.isFinite(gain) || !Number.isFinite(max) || gain < 0 || max <= 0 ||
+          gain > (policy === 'assist' ? .2 : 1) || max > (policy === 'assist' ? .8 : 1.5))
+        throw new Error('运动参数不在允许范围内');
+    }
     this.ws.send(JSON.stringify(command));
   }
   emit() { this.dispatchEvent(new Event('change')); }
