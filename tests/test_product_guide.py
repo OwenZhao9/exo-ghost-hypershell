@@ -68,7 +68,7 @@ def test_gateway_request_contains_image_and_keeps_key_out_of_body():
     request, timeout = seen[0]
     body = json.loads(request.data)
     assert text == '画面里有台阶。'
-    assert request.full_url == ENDPOINT and timeout <= 30
+    assert request.full_url == ENDPOINT and timeout == 60
     assert request.get_header('Authorization') == 'Bearer test-key'
     assert body['model'] == MODEL
     assert body['messages'][0]['content'][1]['image_url']['url'].startswith('data:image/jpeg;base64,')
@@ -82,3 +82,11 @@ def test_gateway_failure_does_not_expose_key():
     with pytest.raises(ValueError, match='鉴权或模型权限') as error:
         describe_jpeg(JPEG, key='secret-key', opener=opener)
     assert 'secret-key' not in str(error.value)
+
+
+def test_upstream_rate_limit_is_reported_as_model_busy():
+    def opener(request, timeout):
+        raise HTTPError(ENDPOINT, 429, 'provider overloaded', {}, None)
+
+    with pytest.raises(ValueError, match='模型服务暂时繁忙'):
+        describe_jpeg(JPEG, key='test-key', opener=opener)

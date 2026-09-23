@@ -78,16 +78,18 @@ def describe_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) -> str
         'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
     }, method='POST')
     try:
-        with opener(request, timeout=25) as response:
+        with opener(request, timeout=60) as response:
             result = json.load(response)
     except HTTPError as error:
         if error.code in {401, 403}:
             raise ValueError('EvoMap 鉴权或模型权限失败，请检查 Gateway Key 和模型绑定') from None
         if error.code == 429:
-            raise ValueError('EvoMap 请求过于频繁，请稍后再试') from None
+            raise ValueError('EvoMap 模型服务暂时繁忙，请稍后再试') from None
         raise ValueError(f'EvoMap 请求失败（HTTP {error.code}）') from None
     except (URLError, TimeoutError, OSError):
         raise ValueError('EvoMap 暂时无法连接或请求超时') from None
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise ValueError('EvoMap 返回格式异常，请稍后再试') from None
     try:
         content = result['choices'][0]['message']['content']
         if isinstance(content, list):
