@@ -53,3 +53,20 @@ test('explicit bounded policies work, unsafe motion does not, stop remains avail
   } finally { d.close(); }
   assert.equal(d.fresh, false); assert.deepEqual(d.history, []);
 });
+
+test('guide cue requires the separate bench flag, fresh real device and zero policy', () => {
+  const d = connected({control_enabled: false, guide_motor_demo: true});
+  try {
+    d.status.profile = 'table'; d.status.policy = 'zero';
+    d.send({op: 'guide_cue', direction: 'right', max: 9});
+    assert.deepEqual(d.ws.sent[0], {op: 'guide_cue', direction: 'right'});
+    d.status.policy = 'guide_cue';
+    assert.throws(() => d.send({op: 'guide_cue', direction: 'left'}));
+    d.status.policy = 'zero'; d.status.profile = 'wearing';
+    assert.throws(() => d.send({op: 'guide_cue', direction: 'left'}));
+    d.status.profile = 'table'; d.sampleAt = 0;
+    assert.throws(() => d.send({op: 'guide_cue', direction: 'left'}));
+    d.send({op: 'zero'});
+    assert.deepEqual(d.ws.sent.at(-1), {op: 'zero'});
+  } finally { d.close(); }
+});

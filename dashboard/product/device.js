@@ -25,10 +25,20 @@ export class Device extends EventTarget {
   get fresh() { return this.ws?.readyState === WebSocket.OPEN && Date.now() - this.sampleAt < 1000 && Date.now() - this.statusAt < 3000; }
   get ready() { return this.fresh && this.status?.state === 'ARMED' && this.status?.body === 'real' && this.status?.hz >= 50; }
   send(command) {
-    if (!this.config.control_enabled) throw new Error('当前页面用于查看，请在控制台操作设备');
+    const guideCommand = this.config.guide_motor_demo &&
+      ['guide_cue', 'zero', 'estop'].includes(command.op);
+    if (!this.config.control_enabled && !guideCommand)
+      throw new Error('当前页面用于查看，请在控制台操作设备');
     if (this.ws?.readyState !== WebSocket.OPEN) throw new Error('设备连接已断开');
     const stop = ['zero', 'estop'].includes(command.op);
     if (!stop && !this.ready) throw new Error('设备尚未就绪，请等待连接和安全检查完成');
+    if (command.op === 'guide_cue') {
+      if (!this.config.guide_motor_demo || this.status?.profile !== 'table' ||
+          this.status?.policy !== 'zero' || !['left', 'right'].includes(command.direction))
+        throw new Error('桌面电机演示尚未就绪，已跳过本次提示');
+      this.ws.send(JSON.stringify({op: 'guide_cue', direction: command.direction}));
+      return;
+    }
     if (!stop) {
       const {op, policy, gain, max} = command;
       if (op !== 'policy' || !['assist', 'resist'].includes(policy) ||

@@ -32,6 +32,8 @@ KEEPALIVE_PULSE_S = 0.4
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="外骨骼常驻控制服务")
     ap.add_argument("--profile", choices=list(PROFILES), default="table")
+    ap.add_argument("--guide-motor-demo", action="store_true",
+                    help="仅真机桌面支架演示：允许照片方向触发一次限幅抬腿提示")
     ap.add_argument("--limit", type=float, default=2.0, help="软限幅 Nm")
     ap.add_argument("--ramp", type=float, default=3.0,
                     help="力矩斜坡上限 Nm/s（项目规则：默认要慢）")
@@ -82,11 +84,17 @@ def read_cmd_file(last_seq: int) -> Optional[dict]:
 
 def main(argv: Optional[list[str]] = None) -> None:
     a = build_parser().parse_args(argv)
+    if a.guide_motor_demo and (a.profile != "table" or a.body != "real"):
+        raise SystemExit("--guide-motor-demo 只允许真机桌面档")
+    if a.guide_motor_demo and (a.keepalive > 0 or a.autopilot):
+        raise SystemExit("--guide-motor-demo 不能与保活脉冲或自动策略切换同时使用")
     prof = PROFILES[a.profile]
-    session = Session(profile=prof, ramp_cap_nm_s=a.ramp)
+    session = Session(profile=prof, ramp_cap_nm_s=a.ramp,
+                      guide_motor_demo=a.guide_motor_demo)
 
     cmdq: "queue.Queue[dict]" = queue.Queue()
-    hub = None if a.no_web else WebHub(on_command=cmdq.put)
+    hub = None if a.no_web else WebHub(on_command=cmdq.put,
+                                      ws_host="127.0.0.1" if a.guide_motor_demo else "0.0.0.0")
 
     bridge = make_bridge(a, session)
     memory = None
@@ -127,7 +135,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         tl0, tr0 = pol.torque(s, 1.0)
         sc = session.monitor.assist_scale(s, tl0, tr0) if pol.name == "assist" else 1.0
         tl, tr = pol.torque(s, sc)
-        if s.host_t < session.pulse_until:
+        if pol.name != "guide_cue" and s.host_t < session.pulse_until:
             tl += KEEPALIVE_PULSE_NM        # 保活脉冲叠加在策略输出上
         bridge.set_torque(tl, tr)
         stats["scale"] = sc
@@ -175,8 +183,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     def run_cmd(c: dict, who: str) -> None:
         """所有命令都从这里走：先记流水（谁下的、下了什么），再交给分发器。"""
         journal.write("command", by=who, cmd=dict(c))
-        if c.get("op") in {"policy", "hold", "torque"} and (
-            not bridge.enabled or bridge._reconnecting or bridge.stream_hz() < 50 or
+        if c.get("op") in {"policy", "hold", "torque", "guide_cue"} and (
+            not bridge.enabled or bridge.legs_offline or bridge._reconnecting or bridge.stream_hz() < 50 or
             session.in_quiet_period(time.time(), events.LEGS_ONLINE_QUIET_S)
         ):
             log("设备未就绪或处于安全等待期，忽略控制命令；请恢复后重新下发", "warn")
@@ -273,11 +281,16 @@ def main(argv: Optional[list[str]] = None) -> None:
             time.sleep(0.2)
             now = time.time()
 
+            if session.policy.name == "guide_cue" and session.policy.expired():
+                session.policy = P.make_policy("zero", 0.0, 1.5)
+                session.apply_ramp(bridge)
+                log("视觉电机提示到期，自动归零", "ok")
+
             # 保活脉冲
             s_ = bridge.latest
             if s_ and (abs(s_.ldps) > 5 or abs(s_.rdps) > 5):
                 session.last_motion = now
-            if (a.keepalive > 0 and session.armed and not bridge.legs_offline
+            if (a.keepalive > 0 and session.policy.name == "zero" and session.armed and not bridge.legs_offline
                     and bridge.enabled
                     and now - session.last_motion > a.keepalive
                     and now > session.pulse_until + a.keepalive):

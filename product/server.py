@@ -26,6 +26,7 @@ class Context:
     control: bool = False
     glasses_dir: Path | None = None
     guide_demo: object | None = None
+    guide_motor_demo: bool = False
 
 
 class App:
@@ -37,7 +38,8 @@ class App:
         self.token = secrets.token_urlsafe(32)
         self.route('GET', '/api/config', lambda _: {
             'schema_version': 1, 'features': self.features, 'token': self.token,
-            'device_ws': ctx.device_ws, 'control_enabled': ctx.control})
+            'device_ws': ctx.device_ws, 'control_enabled': ctx.control,
+            'guide_motor_demo': ctx.guide_motor_demo})
         self.route('GET', '/api/sessions', lambda _: {'sessions': ctx.store.sessions()})
 
     def route(self, method, path, handler):
@@ -134,6 +136,8 @@ def main(argv=None):
     ap.add_argument('--glasses-bin', type=Path, help='启用眼镜演示采集的 Luma 拍照程序')
     ap.add_argument('--glasses-unit', help='当前眼镜 BLE 广播名，例如 E06-0194')
     ap.add_argument('--guide-demo-upload', action='store_true', help='演示期间自动将新照片发送给 EvoMap 分析')
+    ap.add_argument('--guide-motor-demo', action='store_true',
+                    help='允许页面向单独开启演示模式的桌面真机发送限幅抬腿提示')
     a = ap.parse_args(argv)
     if a.device_ws:
         url = urlsplit(a.device_ws)
@@ -145,8 +149,13 @@ def main(argv=None):
         ap.error('--glasses-bin 需要同时指定 --glasses-dir 和 --glasses-unit')
     if a.guide_demo_upload and not a.glasses_bin:
         ap.error('--guide-demo-upload 需要同时指定 --glasses-bin')
+    if a.guide_motor_demo and (not a.device_ws or not a.guide_demo_upload):
+        ap.error('--guide-motor-demo 需要 --device-ws 和 --guide-demo-upload')
+    if a.guide_motor_demo and a.control:
+        ap.error('--guide-motor-demo 不与常规页面控制同时开启')
     ctx = Context(Store(a.data_dir.resolve() / 'product.db'), a.recordings_dir.resolve(),
-                  a.device_ws, a.control, a.glasses_dir.resolve() if a.glasses_dir else None)
+                  a.device_ws, a.control, a.glasses_dir.resolve() if a.glasses_dir else None,
+                  guide_motor_demo=a.guide_motor_demo)
     if a.glasses_bin:
         from product_features.guide.demo import DemoCapture
         try:

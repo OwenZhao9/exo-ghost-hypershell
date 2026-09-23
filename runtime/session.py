@@ -28,6 +28,7 @@ class Session:
     pulse_until: float = 0.0                  # keepalive 脉冲的截止时刻
     last_motion: float = field(default_factory=time.time)
     legs_online_at: Optional[float] = None    # 腿板上线时刻，用于静默期
+    guide_motor_demo: bool = False             # 默认禁止视觉结果驱动电机
 
     def __post_init__(self) -> None:
         if self.policy is None:

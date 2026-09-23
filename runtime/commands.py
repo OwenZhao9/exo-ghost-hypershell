@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import importlib
+import math
 import time
 from typing import Any, Callable, Mapping
 
 import control.policies as P
+from control.guide_cue import GuideCuePolicy
 from bridge.faults import FAULT_KINDS
 from bridge.wearer import GAITS
 from control.safety import PROFILES, SafetyMonitor
@@ -59,7 +61,46 @@ def _op_policy(cmd, session, bridge, log):
 
 def _op_zero(cmd, session, bridge, log):
     session.policy = P.make_policy("zero", 0.0, 1.5)
+    session.pulse_until = 0.0
     log("策略 → zero", "ok")
+
+
+def _op_guide_cue(cmd, session, bridge, log):
+    if not session.guide_motor_demo:
+        log("电机演示未启用，忽略视觉提示", "warn")
+        return
+    if not _require_table(session, log, "视觉电机演示") or not _require_armed(session, log, "视觉电机演示"):
+        return
+    if getattr(bridge, "legs_offline", False):
+        log("腿板离线，忽略视觉电机提示", "warn")
+        return
+    if session.policy.name != "zero":
+        log("视觉电机演示只从 zero 状态开始，忽略本次提示", "warn")
+        return
+    direction = cmd.get("direction")
+    if direction not in {"left", "right"}:
+        log("视觉电机演示方向无效，忽略本次提示", "warn")
+        return
+    sample = bridge.latest
+    if sample is None or not all(math.isfinite(v) for v in
+                                 (sample.host_t, sample.ldeg, sample.rdeg, sample.ldps, sample.rdps)):
+        log("关节数据无效，忽略视觉电机提示", "warn")
+        return
+    age = time.time() - sample.host_t
+    if not 0 <= age <= 0.5:
+        log("没有新鲜的关节数据，忽略视觉电机提示", "warn")
+        return
+    if abs(sample.ldps) > 20 or abs(sample.rdps) > 20:
+        log("腿部仍在运动，忽略视觉电机提示", "warn")
+        return
+    try:
+        policy = GuideCuePolicy(direction, sample.ldeg, sample.rdeg)
+    except ValueError as error:
+        log(str(error), "warn")
+        return
+    session.pulse_until = 0.0
+    session.policy = policy
+    log(f"视觉电机演示 → {session.policy.status()}，限幅 0.5 Nm / 20° / 4 秒", "ok")
 
 
 def _op_hold(cmd, session, bridge, log):
@@ -158,6 +199,7 @@ def _op_quit(cmd, session, bridge, log):
 _HANDLERS: dict[str, Callable] = {
     "policy": _op_policy,
     "zero": _op_zero,
+    "guide_cue": _op_guide_cue,
     "hold": _op_hold,
     "torque": _op_torque,
     "estop": _op_estop,

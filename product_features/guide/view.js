@@ -1,12 +1,14 @@
 import {createVoicePlayer} from './voice.js';
 
-export async function mount(root, {api, ui}) {
+export async function mount(root, {api, config, device, ui}) {
   ui.heading(root, '眼镜看一看', '连续拍照时，最新照片显示在最上方，识别结果标注在对应照片上。');
   const note = ui.el('p', '每条判断只对应那张照片，不能判断此刻道路是否可通行。', 'inline-note');
   root.append(note);
   const demo = ui.card('拍照演示'), demoState = ui.el('p', '', 'guide-demo-state');
   const demoDetail = ui.el('p', '', 'muted'), demoActions = ui.el('div', null, 'guide-demo-actions');
   let voiceArmed = false, voiceStartedAt = 0, voiceError = '', playedCue = '', lastRunning = false;
+  let motorArmed = false, motorStartedAt = 0, motorInfo = '', motorStopTimer = null;
+  let pendingMotor = null;
   const seenStates = new Map();
   const voice = createVoicePlayer({
     onError: message => {
@@ -20,6 +22,15 @@ export async function mount(root, {api, ui}) {
     },
   });
   let currentState = null;
+  function disarmMotor() {
+    clearTimeout(motorStopTimer); motorStopTimer = null;
+    pendingMotor = null;
+    if (!motorArmed) return;
+    motorArmed = false;
+    try { device.send({op: 'zero'}); }
+    catch { /* Timed motor cue also returns to zero inside the control service. */ }
+    if (motorButton) motorButton.textContent = '开启抬腿演示';
+  }
   const start = ui.button('开始拍照演示', async () => {
     start.disabled = true;
     voiceArmed = true;
@@ -35,6 +46,7 @@ export async function mount(root, {api, ui}) {
   }, 'button primary');
   const stop = ui.button('停止', async () => {
     stop.disabled = true;
+    disarmMotor();
     try {
       const state = await api('/api/guide/demo/stop', {});
       voiceArmed = false;
@@ -51,7 +63,55 @@ export async function mount(root, {api, ui}) {
     voice.interrupt('unknown');
     showDemo(currentState);
   }, 'button');
-  demoActions.append(start, stop, enableVoice); demo.append(demoState, demoDetail, demoActions); root.append(demo);
+  const motorButton = config.guide_motor_demo ? ui.button('开启抬腿演示', () => {
+    if (motorArmed) {
+      disarmMotor();
+      motorInfo = '电机演示已关闭。';
+    } else if (!currentState?.running) {
+      motorInfo = '请先开始拍照演示。';
+    } else if (!device.ready || device.status?.profile !== 'table' ||
+               device.status?.policy !== 'zero') {
+      motorInfo = '请确认支架上的真机已就绪，且当前模式为松劲。';
+    } else {
+      motorArmed = true;
+      motorStartedAt = Date.now() / 1000;
+      motorInfo = '抬腿演示已开启；仅对之后拍摄并识别的照片动作。';
+      motorButton.textContent = '关闭抬腿演示';
+    }
+    showDemo(currentState);
+  }, 'button') : null;
+  const motorEstop = config.guide_motor_demo ? ui.button('电机急停', () => {
+    try {
+      device.send({op: 'estop'});
+      clearTimeout(motorStopTimer); motorStopTimer = null;
+      motorArmed = false; pendingMotor = null;
+      motorButton.textContent = '开启抬腿演示';
+      motorInfo = '已发送电机急停。';
+    } catch (error) { motorInfo = error.message; }
+    showDemo(currentState);
+  }, 'button danger') : null;
+  demoActions.append(start, stop, enableVoice);
+  if (motorButton) demoActions.append(motorButton, motorEstop);
+  demo.append(demoState, demoDetail, demoActions); root.append(demo);
+  const updateMotor = () => {
+    if (!motorArmed) return;
+    if (!device.ready || device.status?.profile !== 'table') {
+      disarmMotor();
+      motorInfo = '设备状态变化，电机演示已关闭。';
+      showDemo(currentState);
+      return;
+    }
+    if (pendingMotor && device.status?.policy === 'guide_cue') {
+      motorInfo = pendingMotor.direction === 'right' ? '左腿抬起提示执行中。' : '右腿抬起提示执行中。';
+      pendingMotor = null;
+      showDemo(currentState);
+    } else if (pendingMotor && Date.now() - pendingMotor.sentAt > 2500) {
+      disarmMotor();
+      motorInfo = '控制服务未确认抬腿请求，演示已关闭。';
+      showDemo(currentState);
+    }
+  };
+  if (motorButton) device.addEventListener('change', updateMotor);
   const timeline = ui.card('拍照记录'), captures = ui.el('div', null, 'guide-capture-list');
   const captureEmpty = ui.el('p', '开始演示后，照片会依次显示在这里。', 'muted');
   captures.append(captureEmpty); timeline.append(captures); root.append(timeline);
@@ -73,6 +133,13 @@ export async function mount(root, {api, ui}) {
       voice.enqueue('stop');
       voiceArmed = false;
     }
+    if (motorArmed && lastRunning && !state.running) {
+      motorStopTimer = setTimeout(() => {
+        disarmMotor();
+        motorInfo = '本轮结束，电机演示已关闭。';
+        showDemo(currentState);
+      }, 4500);
+    }
     lastRunning = state.running;
     demo.hidden = false;
     start.disabled = state.running; stop.disabled = !state.running;
@@ -86,6 +153,8 @@ export async function mount(root, {api, ui}) {
       voiceArmed ? '语音已开启，将从电脑当前音频输出设备播放。' :
         '点击“开始”会开启语音；也可试听。',
       playedCue ? `最近语音：${playedCue}` : '',
+      config.guide_motor_demo ? (motorArmed ? '电机演示已开启。' : '电机演示未开启。') : '',
+      motorInfo,
       '请勿依据演示判断行走。'].filter(Boolean).join('\n');
   }
 
@@ -152,6 +221,22 @@ export async function mount(root, {api, ui}) {
         voice.enqueue(shot.direction === 'left' || shot.direction === 'right' ?
           shot.direction : 'unknown');
       }
+      if (motorArmed && shot.state === 'complete' && previousState !== 'complete' &&
+          Number.isFinite(shot.capture_started_at) && shot.capture_started_at >= motorStartedAt) {
+        if (shot.direction === 'left' || shot.direction === 'right') {
+          if (Date.now() / 1000 - shot.captured_at > 60 ||
+              !Number.isFinite(shot.analyzed_at) || Date.now() / 1000 - shot.analyzed_at > 5) {
+            motorInfo = '照片结果已经过期，本次不动作。';
+          } else {
+            try {
+              device.send({op: 'guide_cue', direction: shot.direction});
+              pendingMotor = {direction: shot.direction, sentAt: Date.now()};
+              motorInfo = shot.direction === 'right' ? '已请求左腿抬起，等待设备确认。' : '已请求右腿抬起，等待设备确认。';
+            } catch (error) { motorInfo = error.message; }
+          }
+        } else { motorInfo = '无法判断方向，本次不动作。'; }
+        showDemo(currentState);
+      }
       seenStates.set(shot.filename, shot.state);
     }
   }
@@ -197,5 +282,7 @@ export async function mount(root, {api, ui}) {
   }
   await load();
   const timer = setInterval(load, 2000);
-  return () => { disposed = true; clearInterval(timer); voice.interrupt(); };
+  return () => { disposed = true; clearInterval(timer); disarmMotor();
+    if (motorButton) device.removeEventListener('change', updateMotor);
+    voice.interrupt(); };
 }
