@@ -15,8 +15,10 @@
 
 - **反射 / fly-reflex**：`control/reflex_rules.py`、`control/safety.py` 逐帧检查，异常时减弱输出或急停。不能让模型推理阻塞读线程。
 - **直觉 / jev-decide**：`agent/features.py`、`agent/policy_rules.py`、`agent/decide.py` 计算短时间窗口的策略建议；置信度不足时维持原策略。自动执行默认关闭。
-- **经验 / evomap-genes**：`agent/memory.py`、`agent/capsules.py` 存取问题处理经验；数据库操作放在后台线程，不能阻塞设备读线程。
-- **验证**：`tests/test_reflex_backends.py`、`tests/test_decide.py`、`tests/test_memory.py`。各独立库的版本和测试在各自仓库维护。
+- **经验 / evomap-genes**：`agent/memory.py`、`agent/capsules.py` 用 `evomap-genes` 在本地 SQLite 存取问题处理经验；数据库操作放在后台线程，不能阻塞设备读线程。设备事件触发本地回忆；原有修复步骤只来自本地库。
+- **EvoMap 公开检索**：控制服务显式传入 `--evomap-read` 后，`agent/evomap_public.py` 才会根据已知设备事件向 EvoMap Hub 的公开 `GET /a2a/assets/search` 发送固定、通用的英文关键词。独立网络线程与本地数据库线程隔离，7 秒超时，同类事件 30 秒内不重复查询。结果在本机仪表盘经验层显示条目标题、来源链接、类型、信任等级和审核状态；网络失败会显示降级状态。本地经验在断网时照常工作。
+- **数据与控制边界**：默认关闭远端检索；不发送原始传感器帧、序列号、用户自由文本、行走档案或个人记忆。不注册 EvoMap 节点、不使用密钥、不下载外部条目正文、不发布本地经验、不自动把远端结果写入 `evomap-genes` 或下发设备策略。外部条目只是人工查看的参考，所标审核状态不等于本项目的真机验证。
+- **验证**：`tests/test_reflex_backends.py`、`tests/test_decide.py`、`tests/test_memory.py`、`tests/test_evomap_public.py`；公开端点的可达性只代表检索可用，不代表远端经验适用于外骨骼。各独立库的版本和测试在各自仓库维护。
 
 ## Sim to Real 与会话交付单
 

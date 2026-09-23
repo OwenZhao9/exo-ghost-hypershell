@@ -7,6 +7,8 @@ const Ghost = (() => {
   const POLICY_CN = {zero:'松劲', resist:'阻尼', assist:'助力', hold:'位置保持', torque:'恒定力矩'};
   const HELD_CN = {gate:'置信度不足，保持原策略', hold:'刚换过策略，防抖期内'};
   const cn = p => POLICY_CN[p] || p || '—';
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch =>
+    ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[ch]));
 
   function bar(frac, cls){
     const pct = Math.max(0, Math.min(1, frac || 0)) * 100;
@@ -87,19 +89,37 @@ const Ghost = (() => {
     if (!el) return;
     const m = st.memory;
     if (!m){ el.innerHTML = '<div class="gnote">未启用（--no-memory）</div>'; return; }
-    let html = `<div class="gline">继承了 <b>${m.inherited}</b> 条经验`
-             + (m.seeded ? `（本次新写入 ${m.seeded} 条）` : '') + '</div>';
+    let html = `<div class="gline">继承了 <b>${Number(m.inherited) || 0}</b> 条经验`
+             + (m.seeded ? `（本次新写入 ${Number(m.seeded) || 0} 条）` : '') + '</div>';
     const r = m.last;
     if (r && r.hits && r.hits.length){
       const h = r.hits[0];
-      html += `<div class="gline">回忆「${r.query}」→ <b>${h.title}</b>
-                 <span class="gthr">相似度 ${h.score.toFixed(2)}</span></div>`;
-      html += '<ol class="gsteps">' + h.steps.map(s => `<li>${s}</li>`).join('') + '</ol>';
+      html += `<div class="gline">回忆「${esc(r.query)}」→ <b>${esc(h.title)}</b>
+                 <span class="gthr">相似度 ${(Number(h.score) || 0).toFixed(2)}</span></div>`;
+      html += '<ol class="gsteps">' + (h.steps || []).map(s => `<li>${esc(s)}</li>`).join('') + '</ol>';
     } else if (r){
-      html += `<div class="gline warn">回忆「${r.query}」：库里没有相关经验`
-            + (r.weak ? `（${r.weak} 条沾边但相似度不够）` : '') + '</div>';
+      html += `<div class="gline warn">回忆「${esc(r.query)}」：库里没有相关经验`
+            + (r.weak ? `（${Number(r.weak) || 0} 条沾边但相似度不够）` : '') + '</div>';
     } else {
       html += '<div class="gnote">设备一出事就会自动来这里查解法。</div>';
+    }
+    const remote = m.evomap;
+    if (remote && remote.enabled){
+      html += `<div class="gnote">EvoMap 公开参考${remote.event ? ` · 事件 ${esc(remote.event)}` : ''}`
+        + ' · 只读检索，不自动采用外部策略</div>';
+      if (remote.state === 'searching'){
+        html += '<div class="gline">正在查找公开条目…</div>';
+      } else if (remote.state === 'error'){
+        html += '<div class="gline warn">远端暂不可用；本地经验仍可查。</div>';
+      } else if (remote.state === 'ready'){
+        const refs = Array.isArray(remote.references) ? remote.references : [];
+        html += refs.length ? '<ol class="gsteps">' + refs.map(ref => {
+          const url = String(ref.url || '');
+          if (!/^https:\/\/evomap\.ai\/a2a\/assets\/sha256:[a-f0-9]{64}$/.test(url)) return '';
+          return `<li><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(ref.title)}</a>`
+            + ` <span class="gthr">${esc(ref.type)} · ${esc(ref.trust_tier)} · ${esc(ref.validation_status)}</span></li>`;
+        }).join('') + '</ol>' : '<div class="gline">没有匹配的公开条目。</div>';
+      }
     }
     el.innerHTML = html;
   }

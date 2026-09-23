@@ -42,6 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-memory", action="store_true",
                     help="不加载经验库（默认加载 data/genes.db，遇到设备异常会自动回忆解法）")
     ap.add_argument("--memory-db", default="data/genes.db", help="经验库路径")
+    ap.add_argument("--evomap-read", action="store_true",
+                    help="设备事件发生时，在独立线程检索 EvoMap 公开条目元数据（不上传记录、不自动采用）")
     ap.add_argument("--no-decide", action="store_true", help="不启用直觉层（Ghost 不再给策略建议）")
     ap.add_argument("--autopilot", action="store_true",
                     help="让 Ghost 真的下发它的决定（默认只建议不下发）")
@@ -140,6 +142,9 @@ def main(argv: Optional[list[str]] = None) -> None:
             session.legs_online_at = time.time()
             session.last_motion = time.time()
             log(events.LEGS_ONLINE_HINT, "warn")
+            if memory is not None:
+                memory.note(f"设备事件：{ev}", "partial", payload={"event": ev})
+                memory.recall_for_event(ev)
             return
         if ev.startswith("trip:"):
             session.armed = False
@@ -173,7 +178,17 @@ def main(argv: Optional[list[str]] = None) -> None:
             for i, step in enumerate(getattr(top.asset, "strategy_steps", ())[:4], 1):
                 log(f"    {i}. {step}")
 
-        memory = GhostMemory(db_path=a.memory_db, on_recall=on_recall).start()
+        def on_evomap(result: dict) -> None:
+            if result["state"] == "ready":
+                log(f"EvoMap 公开检索：{result['event']} 找到 "
+                    f"{len(result['references'])} 条参考，仅供人工查阅",
+                    kind="evomap_lookup", event=result["event"])
+            else:
+                log(f"EvoMap 公开检索暂不可用：{result['event']}，本地经验仍可用",
+                    "warn", kind="evomap_lookup", event=result["event"])
+
+        memory = GhostMemory(db_path=a.memory_db, on_recall=on_recall,
+                             evomap_read=a.evomap_read, on_evomap=on_evomap).start()
         session.memory = memory
 
     # ---------- 直觉层（决策，跑在主循环里，不进串口读线程） ----------
@@ -222,6 +237,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         snap = memory.snapshot()
         print(f"经验库 {a.memory_db}：继承了 {snap['inherited']} 条经验"
               f"（本次新播种 {snap['seeded']} 条）", flush=True)
+        if a.evomap_read:
+            print("EvoMap：公开条目只读检索已开启；只发送固定事件词，不下发外部策略", flush=True)
     if bridge.log_path:          # CSV 在 ENABLE 时才打开，流水跟它同名不同后缀
         journal.set_path(os.path.splitext(bridge.log_path)[0] + ".jsonl")
     journal.write("session", phase="start", profile=prof.name, body=a.body,
