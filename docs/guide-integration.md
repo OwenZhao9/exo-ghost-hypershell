@@ -2,12 +2,12 @@
 
 用户已选择 EvoMap 官方 Gateway API，账户已有赠送额度。接口为
 `https://api.evomap.ai/v1/chat/completions`，模型 ID 为
-`evomap-gemini-3.1-pro-preview`。其图像透传能力仍需用获准发送的真实照片验证。
+`evomap-gemini-3.1-pro-preview`。已用用户允许的一张历史眼镜照片验证图片输入和文字输出。
 
-## 尚需提供的配置
+## 本机配置
 
-- 在 EvoMap API 管理页创建 Gateway Key，并绑定 Gemini 3.1 Pro。
-- 将 Key 仅保存在本机 `EVOMAP_GATEWAY_API_KEY` 环境变量中（不在聊天、源码、日志中放密钥）。
+- 已在 EvoMap API 管理页创建仅绑定 Gemini 3.1 Pro、30 天到期的 Gateway Key。
+- 本机产品工作区把 Key 存在 Git 忽略的 `data/product/evomap_gateway.key`，文件权限为 0600。启动产品服务时从该文件注入 `EVOMAP_GATEWAY_API_KEY`；不在聊天、源码、网页或日志中放密钥。
 
 现有眼镜项目 `/Users/owenzhao/eyeGalss/luma-core` 已验证通过 BLE 拍照并保存小 JPEG
 到 `/Users/owenzhao/eyeGalss/shots`。原 `examples/assistant.rs` 使用 macOS `say`，
@@ -24,10 +24,10 @@
 
 ## 后续验收
 
-1. 配置 Gateway Key 后，用一张获准发送的真实照片验证 EvoMap 网关的图片输入与文字响应。
-2. 验证鉴权失败、限流、超时、图片不完整与旧图的处理。
-3. 连接眼镜采集流程；不调用系统语音合成。
+1. 已用获准发送的历史照片验证网关 JPEG 输入和中文文字响应。Gemini 3.1 Pro 的思考 token 会占用回复上限，过低上限导致半句输出；已改为低思考等级和足够的 token 预算，并复验获得完整描述。
+2. 已覆盖鉴权失败、网关繁忙、图片不完整与旧图的处理；真实网关偶发 429 与超时，页面显示错误后可重试。
+3. 新鲜眼镜照片采集仍需验证。纯拍照命令不调用系统语音合成；此前 Claude 助手进程因含 macOS `say` 未被复用。
 4. 力觉引导是后续独立的真机验证项目；原方案中的力矩数值不能当作已验证安全参数。
 
-本分支已实现手动选图、请求封装、错误提示和边界测试；尚未配置真实 Key、验证网关
-图片透传或接入眼镜音频。它是照片描述试验，不是实际引路功能。
+本分支已实现手动选图、请求封装、错误提示和边界测试，并完成一次真实网关图片验收；
+眼镜新鲜采图和音频仍未接入产品。它是照片描述试验，不是实际引路功能。
