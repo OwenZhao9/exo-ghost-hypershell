@@ -8,9 +8,12 @@ struct GhostMobileApp: App {
     var body: some Scene {
         WindowGroup {
             ControlView(connection: connection)
+                .task { connection.connectIfConfigured() }
                 .onChange(of: scenePhase) { phase in
                     if phase != .active {
                         connection.disconnect()
+                    } else {
+                        connection.connectIfConfigured()
                     }
                 }
         }

@@ -9,14 +9,12 @@
 /* Begin PBXBuildFile section */
 		035D5917A0C957834AD1C350 /* GhostMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F66EAD577BC86008E0815D24 /* GhostMobileApp.swift */; };
 		9E40A7A963B492DDF15B63DB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7162714FACF07BE8B6AD4204 /* Assets.xcassets */; };
-		B3DD61344EAF19F85F956D6C /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37318BAFE1D84569A71FFE90 /* PairingScanner.swift */; };
 		D4BE6B850878FB2FCEE8A993 /* ExoConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C353C0BE70863C717C32D72 /* ExoConnection.swift */; };
 		EEC2880F0B641517E13CE51C /* ControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6263482D6452A61F70192236 /* ControlView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		18FF91E785927AEFFC28B386 /* GhostMobile.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GhostMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		37318BAFE1D84569A71FFE90 /* PairingScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
 		6263482D6452A61F70192236 /* ControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlView.swift; sourceTree = "<group>"; };
 		7162714FACF07BE8B6AD4204 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		78CEC4973FB0415FCA795124 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -41,7 +39,6 @@
 				7C353C0BE70863C717C32D72 /* ExoConnection.swift */,
 				F66EAD577BC86008E0815D24 /* GhostMobileApp.swift */,
 				78CEC4973FB0415FCA795124 /* Info.plist */,
-				37318BAFE1D84569A71FFE90 /* PairingScanner.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -127,7 +124,6 @@
 				EEC2880F0B641517E13CE51C /* ControlView.swift in Sources */,
 				D4BE6B850878FB2FCEE8A993 /* ExoConnection.swift in Sources */,
 				035D5917A0C957834AD1C350 /* GhostMobileApp.swift in Sources */,
-				B3DD61344EAF19F85F956D6C /* PairingScanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

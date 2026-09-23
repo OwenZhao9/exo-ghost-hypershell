@@ -12,9 +12,9 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 ## 连接方式
 
 - Mac 上的控制服务独占 USB 串口，手机通过同一局域网连接 Mac 的 WebSocket，不能直接把设备 USB 串口接到 iPhone。
-- 先停止旧版控制进程，再从**本分支**启动真机服务；不可让两个进程同时占用外骨骼串口。启动后在 Mac 本机运行 `python -m tools.mobile_pairing --state-dir data --ws-port 8765`，将显示的 Mac 地址和配对口令输入 iPhone。口令只保存在忽略提交的 `data/mobile-pairing-token`，权限 0600；App 保存到本机 Keychain。
+- 真机连接时先停止旧版控制进程，再从**本分支**启动服务；不可让两个进程同时占用外骨骼串口。Mac 的口令保存在忽略提交的 `data/mobile-pairing-token`，权限 0600；`1.0 (3)` 在打包时读取它，App 首次运行后保存到 iPhone Keychain，无需现场输入。
 - 对于不同端口或 `--state-dir`，配对命令参数须与服务完全一致。Mac 和 iPhone 必须在同一可信局域网内。App 只接受局域网 IPv4 地址，测试版未使用公网转发或远程云控。
-- 演示前在 Mac 本分支执行 `python -m tools.mobile_pairing --state-dir data --ws-port 8765 --qr`，用 Finder 打开生成的 `data/mobile-pairing-qr.png`。iPhone App 点“扫描 Mac 配对码”，允许相机，扫一次后会自动保存 Mac 地址和口令并尝试连接。口令保存在 iPhone Keychain；下次启动无需重扫。Mac 换 Wi-Fi 后地址可能改变，重新生成并扫描即可。生成二维码需要本机安装 `qrencode`；二维码只保存在本机，不加入 Git，也不要发到群聊或公开展示。演示结束、服务停止后可删除图片并轮换配对口令。
+- `1.0 (3)` 的现场版无需扫码或手输。先运行 `python -m tools.prepare_mobile_demo --state-dir data --ws-port 8765`，然后在 `xcodebuild archive` 中加入 `-xcconfig ios/GhostMobile/DemoPairing.local.xcconfig`。脚本生成的本机配置文件权限为 0600、被 Git 忽略；Xcode 将地址和口令写入该次 IPA 的 Info.plist，App 首次运行后保存到本机设置和 Keychain，并自动尝试连接。IPA 中的口令可被提取，所以只能发给获授权的内测人员。Mac 更换 Wi-Fi 或 IP 时，重新构建，或在 App 的“连接设置”中更改地址。`1.0 (2)` 的扫码版仍作为历史构建保留。
 - 同一台 Mac 上旧网页仍可本机操作；局域网客户端必须先用口令配对，配对后仅能请求低增益助力、阻尼、松劲、急停及心跳。手机端无重新武装、位置保持和直接力矩入口。
 
 ## 安全边界
@@ -26,4 +26,4 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 
 ## TestFlight 状态
 
-本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；首版 TestFlight `1.0 (1)` 与扫码版 `1.0 (2)` 均已处理并分配给手动分发的内部群组 `Ghost iPhone 内测`。用户的 iPhone 8 安装、真实扫码配对、控制和失联保护仍须现场验证。二维码识别在 Mac 上校验通过，相机权限被拒绝时的提示在模拟器上检查通过；这不等于已在 iPhone 8 上验证相机扫描。
+本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；首版 TestFlight `1.0 (1)` 与扫码版 `1.0 (2)` 均已处理并分配给手动分发的内部群组 `Ghost iPhone 内测`。预置连接版 `1.0 (3)` 正在验证和上传。用户的 iPhone 8 安装、真实连接、控制和失联保护仍须现场验证。

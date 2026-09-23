@@ -15,6 +15,16 @@ from runtime.session import Session
 from control.safety import PROFILES
 from tools.webhub import WebHub
 from tools.mobile_pairing import PAIR_PREFIX, pairing_payload, write_qr
+from tools.prepare_mobile_demo import write_pairing_config
+
+
+def test_local_demo_pairing_config_contains_credentials_with_private_permissions(tmp_path):
+    path = tmp_path / "DemoPairing.local.xcconfig"
+    host = "192.168.40.25:8765"
+    token = "private-pairing-token-with-more-than-32-characters"
+    write_pairing_config(path, host, token)
+    assert path.read_text() == f"DEMO_HOST = {host}\nDEMO_TOKEN = {token}\n"
+    assert os.stat(path).st_mode & 0o777 == 0o600
 
 
 def test_pairing_qr_contains_exact_host_and_token_but_not_in_filename(tmp_path):

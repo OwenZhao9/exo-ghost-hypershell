@@ -19,7 +19,11 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
+	<key>DemoPairingHost</key>
+	<string>$(DEMO_HOST)</string>
+	<key>DemoPairingToken</key>
+	<string>$(DEMO_TOKEN)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAppTransportSecurity</key>
@@ -27,8 +31,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>扫描这台 Mac 显示的配对码，自动填入局域网地址和配对口令。</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>连接同一局域网内的外骨骼控制服务，显示实时状态并发送你选择的控制指令。</string>
 	<key>UILaunchScreen</key>

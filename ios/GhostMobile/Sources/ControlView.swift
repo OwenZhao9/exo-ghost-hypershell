@@ -11,8 +11,6 @@ private enum Palette {
 struct ControlView: View {
     @ObservedObject var connection: ExoConnection
     @State private var showEstopConfirm = false
-    @State private var showScanner = false
-    @State private var scanError = ""
 
     var body: some View {
         ScrollView {
@@ -52,24 +50,6 @@ struct ControlView: View {
         } message: {
             Text("急停后只能在 Mac 端确认现场安全并重新武装。")
         }
-        .sheet(isPresented: $showScanner) {
-            VStack(spacing: 14) {
-                Text("扫描 Mac 配对码").font(.title3.bold())
-                Text("将相机对准这台 Mac 上显示的二维码")
-                    .font(.subheadline).foregroundStyle(.secondary)
-                PairingScanner(onScan: { value in
-                    scanError = connection.importPairing(value) ? "" : "配对码无效，请重新生成后再扫"
-                    showScanner = false
-                }, onError: { reason in
-                    scanError = reason
-                    showScanner = false
-                })
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                Button("取消") { showScanner = false }
-            }
-            .padding(20)
-            .presentationDetents([.medium, .large])
-        }
     }
 
     private var header: some View {
@@ -86,31 +66,23 @@ struct ControlView: View {
     private var pairing: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle("连接 Mac", symbol: "wifi")
-            Button {
-                scanError = ""
-                showScanner = true
-            } label: {
-                Label("扫描 Mac 配对码", systemImage: "qrcode.viewfinder")
-                    .frame(maxWidth: .infinity)
+            Text(connection.address.isEmpty ? "尚未配置 Mac" : connection.address)
+                .font(.subheadline.monospaced())
+                .foregroundStyle(.secondary)
+            DisclosureGroup("连接设置") {
+                TextField("Mac 地址，例如 192.168.1.8:8765", text: $connection.address)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.numbersAndPunctuation)
+                    .textContentType(.URL)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("mac-address")
+                SecureField("配对口令", text: $connection.token)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("pairing-token")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Palette.lime)
-            .foregroundStyle(Palette.background)
-            if !scanError.isEmpty {
-                Text(scanError).font(.footnote).foregroundStyle(.orange)
-            }
-            TextField("Mac 地址，例如 192.168.1.8:8765", text: $connection.address)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.numbersAndPunctuation)
-                .textContentType(.URL)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("mac-address")
-            SecureField("配对口令", text: $connection.token)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("pairing-token")
             Button(connection.connected ? "断开连接" : "连接") {
                 if connection.connected { connection.disconnect() }
                 else { connection.connect() }

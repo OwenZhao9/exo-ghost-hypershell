@@ -17,6 +17,7 @@ data/status.json
 data/sim-runtime/
 data/mobile-pairing-token
 data/mobile-pairing-qr.png
+ios/GhostMobile/DemoPairing.local.xcconfig
 !data/samples/
 
 # Claude Code 的本地工作配置，不属于项目交付物
