@@ -41,7 +41,6 @@ const applyLeftLeg = document.getElementById("apply-left-leg");
 const applyRightLeg = document.getElementById("apply-right-leg");
 const applyBothLegs = document.getElementById("apply-both-legs");
 const zeroButton = document.getElementById("control-zero");
-const estopButton = document.getElementById("control-estop");
 const controlProfile = document.getElementById("control-profile");
 const safetyDialog = document.getElementById("control-safety-dialog");
 const safetyMessage = document.getElementById("control-safety-message");
@@ -342,7 +341,7 @@ function updateControls() {
     !splitSupported;
   for (const button of [applyLeftLeg, applyRightLeg, applyBothLegs])
     button.disabled = !canControl || !bilateralSupported;
-  zeroButton.disabled = estopButton.disabled = !live.connected;
+  zeroButton.disabled = !live.connected;
   const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
   const active = live.status?.policy === "bilateral"
     ? `左${names[live.status.mode_l] || live.status.mode_l} ${live.status.gain_l}` +
@@ -467,11 +466,6 @@ zeroButton.addEventListener("click", () => {
   try { telemetry.send({ op: "zero" }); controlReason.textContent = "松劲请求已发送"; }
   catch (error) { controlReason.textContent = error.message; }
 });
-estopButton.addEventListener("click", () => {
-  try { telemetry.send({ op: "estop" }); controlReason.textContent = "急停请求已发送"; }
-  catch (error) { controlReason.textContent = error.message; }
-});
-
 const telemetry = connectTelemetry({ onChange: (next) => {
   live = next;
   updateControls();

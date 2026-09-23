@@ -643,7 +643,6 @@ p {
 .control-footer { justify-content: flex-end; }
 .control-footer p { flex: 1; margin: 0; }
 .twin-control .control-footer button { background: transparent; color: #e8eee3; border-color: #64715c; }
-.twin-control .control-footer button.danger { color: #ffaaa0; border-color: #c15e54; }
 .system-section {
   background: #e8e9df;
   color: #1b251b;
