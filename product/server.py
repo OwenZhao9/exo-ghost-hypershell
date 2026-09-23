@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .storage import Store
+from .workspace import default_port
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -123,7 +124,7 @@ class App:
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description='Ghost 产品工作区（不占用串口）')
-    ap.add_argument('--port', type=int, default=8100)
+    ap.add_argument('--port', type=int, default=default_port(ROOT))
     ap.add_argument('--data-dir', type=Path, default=ROOT / 'data/product')
     ap.add_argument('--recordings-dir', type=Path, default=ROOT / 'data')
     ap.add_argument('--device-ws', help='现有控制服务地址，如 ws://127.0.0.1:8765')
