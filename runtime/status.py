@@ -46,7 +46,8 @@ def snapshot(*, t: float, state: str, policy: str, gain: float, max_torque: floa
              reconnects: int, scale: float = 1.0,
              reflex: Optional[Mapping[str, Any]] = None,
              memory: Optional[Mapping[str, Any]] = None,
-             decision: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+             decision: Optional[Mapping[str, Any]] = None,
+             body: Optional[str] = None, profile: Optional[str] = None) -> dict[str, Any]:
     """推给仪表盘的那一包（不含逐帧读数）。
 
     `memory` 是 `agent.memory.GhostMemory.snapshot()` 的输出：继承了几条经验、
@@ -63,6 +64,10 @@ def snapshot(*, t: float, state: str, policy: str, gain: float, max_torque: floa
         out["memory"] = dict(memory)
     if decision is not None:
         out["decision"] = dict(decision)
+    if body is not None:
+        out["body"] = body
+    if profile is not None:
+        out["profile"] = profile
     return out
 
 

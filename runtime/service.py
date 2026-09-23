@@ -101,7 +101,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         if journal_started or not bridge.log_path:
             return
         journal.set_path(os.path.splitext(bridge.log_path)[0] + ".jsonl")
-        journal.write("session", phase="start", profile=prof.name, body=a.body,
+        journal.write("session", phase="start", profile=prof.name,
+                      body="real" if isinstance(bridge, ExoBridge) else "sim",
                       limit=a.limit, ramp=a.ramp, autopilot=a.autopilot,
                       csv=bridge.log_path, version=version)
         journal_started = True
@@ -342,7 +343,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                     legs_offline=bridge.legs_offline, reconnects=bridge.n_reconnects,
                     scale=stats["scale"], reflex=session.monitor.scale_detail(),
                     memory=None if memory is None else memory.snapshot(),
-                    decision=None if decider is None else decider.snapshot())
+                    decision=None if decider is None else decider.snapshot(),
+                    body="real" if isinstance(bridge, ExoBridge) else "sim", profile=prof.name)
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(STATUS_FILE, status.full_snapshot(
