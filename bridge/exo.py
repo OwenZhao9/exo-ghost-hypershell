@@ -528,11 +528,14 @@ class ExoBridge:
         self._logger.open()
 
     def close(self) -> None:
-        self._stop.set()
+        # 正常连接时先让读线程接收 DISABLE 应答；正在找端口时先取消恢复线程。
+        if self._reconnecting:
+            self._stop.set()
         try:
             if self.ser is not None:
                 self.disable()
         finally:
+            self._stop.set()
             if self._recovery_thread and self._recovery_thread.is_alive() and threading.current_thread() is not self._recovery_thread:
                 self._recovery_thread.join(timeout=0.5)
             if self._reader and self._reader.is_alive() and threading.current_thread() is not self._reader:
