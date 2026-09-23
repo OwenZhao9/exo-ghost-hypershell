@@ -24,11 +24,13 @@ targets:
       properties:
         CFBundleDisplayName: Ghost 外骨骼
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        CFBundleVersion: "2"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSLocalNetworkUsageDescription: 连接同一局域网内的外骨骼控制服务，显示实时状态并发送你选择的控制指令。
+        NSCameraUsageDescription: 扫描这台 Mac 显示的配对码，自动填入局域网地址和配对口令。
+        ITSAppUsesNonExemptEncryption: false
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

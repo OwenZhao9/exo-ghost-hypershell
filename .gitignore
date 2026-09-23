@@ -16,6 +16,7 @@ data/cmd.json
 data/status.json
 data/sim-runtime/
 data/mobile-pairing-token
+data/mobile-pairing-qr.png
 !data/samples/
 
 # Claude Code 的本地工作配置，不属于项目交付物

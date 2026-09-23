@@ -7,6 +7,12 @@ struct HipSample: Identifiable {
     let right: Double
 }
 
+private struct PairingPayload: Decodable {
+    let v: Int
+    let host: String
+    let token: String
+}
+
 @MainActor
 final class ExoConnection: ObservableObject {
     @Published var address: String = UserDefaults.standard.string(forKey: "macAddress") ?? ""
@@ -45,6 +51,28 @@ final class ExoConnection: ObservableObject {
         case "RECONN": return "设备重连中"
         default: return "等待设备"
         }
+    }
+
+    @discardableResult
+    func importPairing(_ scanned: String) -> Bool {
+        let prefix = "EXOGHOST-PAIR-V1:"
+        guard scanned.hasPrefix(prefix) else { return false }
+        let encoded = String(scanned.dropFirst(prefix.count))
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let padded = encoded.padding(toLength: (encoded.count + 3) / 4 * 4,
+                                     withPad: "=", startingAt: 0)
+        guard let data = Data(base64Encoded: padded),
+              let payload = try? JSONDecoder().decode(PairingPayload.self, from: data),
+              payload.v == 1, Self.localAddress(payload.host),
+              payload.token.range(of: "^[A-Za-z0-9_-]{32,128}$", options: .regularExpression) != nil
+        else { return false }
+        address = payload.host
+        token = payload.token
+        UserDefaults.standard.set(address, forKey: "macAddress")
+        PairingSecret.save(token)
+        connect()
+        return true
     }
 
     func connect() {

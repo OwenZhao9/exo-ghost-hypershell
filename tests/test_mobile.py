@@ -2,14 +2,35 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
+import shutil
+
+import pytest
 
 from runtime.mobile import (MobileLease, is_loopback, mobile_command,
                             pairing_token, release_mobile_control, token_matches)
 from runtime.session import Session
 from control.safety import PROFILES
 from tools.webhub import WebHub
+from tools.mobile_pairing import PAIR_PREFIX, pairing_payload, write_qr
+
+
+def test_pairing_qr_contains_exact_host_and_token_but_not_in_filename(tmp_path):
+    host = "192.168.40.25:8765"
+    token = "private-pairing-token-with-more-than-32-characters"
+    payload = pairing_payload(host, token)
+    assert payload.startswith(PAIR_PREFIX)
+    encoded = payload.removeprefix(PAIR_PREFIX)
+    data = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+    assert json.loads(data) == {"v": 1, "host": host, "token": token}
+    if not shutil.which("qrencode"):
+        pytest.skip("qrencode 未安装")
+    path = write_qr(str(tmp_path), payload)
+    assert path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert os.stat(path).st_mode & 0o777 == 0o600
+    assert token not in str(path)
 
 
 def test_pairing_token_is_long_private_and_reused(tmp_path):

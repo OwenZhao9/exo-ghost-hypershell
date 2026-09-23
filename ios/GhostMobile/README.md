@@ -14,6 +14,7 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 - Mac 上的控制服务独占 USB 串口，手机通过同一局域网连接 Mac 的 WebSocket，不能直接把设备 USB 串口接到 iPhone。
 - 先停止旧版控制进程，再从**本分支**启动真机服务；不可让两个进程同时占用外骨骼串口。启动后在 Mac 本机运行 `python -m tools.mobile_pairing --state-dir data --ws-port 8765`，将显示的 Mac 地址和配对口令输入 iPhone。口令只保存在忽略提交的 `data/mobile-pairing-token`，权限 0600；App 保存到本机 Keychain。
 - 对于不同端口或 `--state-dir`，配对命令参数须与服务完全一致。Mac 和 iPhone 必须在同一可信局域网内。App 只接受局域网 IPv4 地址，测试版未使用公网转发或远程云控。
+- 演示前在 Mac 本分支执行 `python -m tools.mobile_pairing --state-dir data --ws-port 8765 --qr`，用 Finder 打开生成的 `data/mobile-pairing-qr.png`。iPhone App 点“扫描 Mac 配对码”，允许相机，扫一次后会自动保存 Mac 地址和口令并尝试连接。口令保存在 iPhone Keychain；下次启动无需重扫。Mac 换 Wi-Fi 后地址可能改变，重新生成并扫描即可。生成二维码需要本机安装 `qrencode`；二维码只保存在本机，不加入 Git，也不要发到群聊或公开展示。演示结束、服务停止后可删除图片并轮换配对口令。
 - 同一台 Mac 上旧网页仍可本机操作；局域网客户端必须先用口令配对，配对后仅能请求低增益助力、阻尼、松劲、急停及心跳。手机端无重新武装、位置保持和直接力矩入口。
 
 ## 安全边界
@@ -25,4 +26,4 @@ xcodebuild -project ios/GhostMobile/GhostMobile.xcodeproj -scheme GhostMobile \
 
 ## TestFlight 状态
 
-本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`），TestFlight 构建 `1.0 (1)` 于 2026-09-23 上传并处理完成。出口合规问题已根据 App 仅调用 Apple 系统加密能力的实现填写。手动分发的内部群组 `Ghost iPhone 内测` 已分配此构建，账户持有人已受邀；邀请仍需在 iPhone 的 TestFlight 中接受。真机 iPhone 8 的系统版本、安装、配对、控制和失联保护仍须现场验证。
+本项目已在本机用 Xcode 26.4 编译 iOS 16 最低目标，并成功导出 App Store Connect 发行签名的 `build/export/GhostMobile.ipa`。App Store Connect 已创建 `Ghost 外骨骼`（Bundle ID `com.owenzhao.exoghost.mobile`）；首版 TestFlight `1.0 (1)` 已处理并分配给手动分发的内部群组 `Ghost iPhone 内测`。扫码配对改动位于构建 `1.0 (2)`，上传和处理状态以 App Store Connect 页面为准。用户的 iPhone 8 安装、真实扫码配对、控制和失联保护仍须现场验证。二维码识别在 Mac 上校验通过，相机权限被拒绝时的提示在模拟器上检查通过；这不等于已在 iPhone 8 上验证相机扫描。
