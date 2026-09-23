@@ -18,7 +18,7 @@
 
 ## 开发
 
-`uv run python -m product.server --port 8101`（按表选择端口）。没有数据时显示空状态。
+`uv run python -m product.server` 自动按当前分支选用上表端口，也可用 `--port` 覆盖。没有数据时显示空状态。
 `--recordings-dir /绝对路径/data` 可读取已有记录，只读，不改原始数据。
 `--device-ws ws://127.0.0.1:8765` 可订阅现有服务的数据，默认只读。
 只有专门用于真机联调的工作区才添加 `--control`，使能页面操作按钮；启动产品服务本身不会下发任何设备命令。
