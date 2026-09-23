@@ -192,7 +192,9 @@ export async function mount(root, {api, config, device, ui}) {
       }
       const approved = verifiedDirection(shot);
       const direction = approved === 'left' ? '画面左侧较空（演示）' :
-        approved === 'right' ? '画面右侧较空（演示）' : '无法判断方向';
+        approved === 'right' ? '画面右侧较空（演示）' :
+        !shot.jev_status && (shot.direction === 'left' || shot.direction === 'right') ?
+          '旧记录未经过 jEV 复核' : '无法判断方向';
       row.message.className = shot.state === 'complete' ? 'guide-capture-result' : 'muted';
       row.message.textContent = shot.state === 'queued' ? '等待识别这张照片…' :
         shot.state === 'analyzing' ? '正在识别并判断这张照片…' :
@@ -208,7 +210,8 @@ export async function mount(root, {api, config, device, ui}) {
         shot.vision_direction === 'unknown' ? '识别：方向不明确' : '';
       row.detail.textContent = [shot.description, shot.error,
         `拍照 ${shot.capture_seconds} 秒`,
-        shot.analysis_seconds != null ? `识别与判断 ${shot.analysis_seconds} 秒` : '',
+        shot.analysis_seconds != null ?
+          `${shot.jev_status ? '识别与判断' : '识别'} ${shot.analysis_seconds} 秒` : '',
         shot.state === 'complete' ? visualResult : '',
         shot.state === 'complete' ? jevState : ''].filter(Boolean).join(' · ');
       const signature = JSON.stringify([shot.state, shot.direction, shot.annotations]);
