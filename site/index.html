@@ -20,7 +20,7 @@
         }
       }
     </script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=20260924-ui"></script>
   </head>
   <body>
     <div class="grain" aria-hidden="true"></div>
@@ -115,38 +115,38 @@
             <h2>从真实身体，<br /><span>进入数字空间。</span></h2>
           </div>
           <p>
-            模型打开页面后自动加载；设备恢复有效数据时，双髋姿态自动跟随。也可以切换到桌面实测记录。
+            连接设备后，在这里查看同步动作；也可以回看已保存的记录。
           </p>
         </div>
         <div class="twin-frame">
           <div class="twin-topline">
-            <span><i class="live-light"></i> X MAX S / 3D VIEW</span
-            ><span>DRAG TO ROTATE · SCROLL TO ZOOM</span>
+            <span><i class="live-light"></i> X MAX S / 动作画面</span
+            ><span>拖动旋转 · 滚动缩放</span>
           </div>
-          <div class="twin-modes" role="group" aria-label="数据模式">
+          <div class="twin-modes" role="group" aria-label="画面模式">
             <button type="button" id="mode-live" class="active" aria-pressed="true">实时数据</button>
             <button type="button" id="mode-replay" aria-pressed="false">历史记录</button>
-            <button type="button" id="human-toggle" aria-pressed="true" disabled>半透明人体：显示</button>
-            <button type="button" id="align-pose" title="恢复已记录的直立姿态基准" disabled>恢复直立基准</button>
-            <button type="button" id="turn-toggle" aria-pressed="true" title="根据腰部传感器的短时转向变化旋转模型" disabled>转身跟随：开</button>
-            <span id="device-state" role="status">正在检查连接</span>
+            <button type="button" id="human-toggle" aria-pressed="true" disabled>隐藏人物</button>
+            <button type="button" id="align-pose" title="将画面恢复到默认站姿和朝向" disabled>重置站姿</button>
+            <button type="button" id="turn-toggle" aria-pressed="true" title="设备转身时，画面也跟着转" disabled>转身同步：开</button>
+            <span id="device-state" role="status">正在连接设备</span>
           </div>
           <div class="twin-viewport" id="twin-viewport">
             <img
               id="twin-poster"
               src="assets/model-preview.png"
-              alt="外骨骼 3D 模型预览"
+              alt="外骨骼动作画面"
               width="488"
               height="488"
             /><button class="load-model" id="load-model" type="button">
-              启动 3D 视图 <span>↗</span>
+              打开动作画面 <span>↗</span>
             </button>
             <p class="twin-error" id="twin-error" role="status" hidden></p>
           </div>
           <div class="twin-bottomline">
             <div>
-              <span class="small-label">数据来源</span
-              ><strong id="source-label">等待真机数据</strong>
+              <span class="small-label">当前画面</span
+              ><strong id="source-label">等待设备数据</strong>
             </div>
             <div>
               <span class="small-label">左髋角度</span
@@ -163,9 +163,9 @@
           <div class="twin-telemetry" aria-label="运动数据">
             <div><span class="small-label">左髋角速度</span><strong id="left-speed">—</strong></div>
             <div><span class="small-label">右髋角速度</span><strong id="right-speed">—</strong></div>
-            <div><span class="small-label">左侧指令力矩</span><strong id="left-torque">—</strong></div>
-            <div><span class="small-label">右侧指令力矩</span><strong id="right-torque">—</strong></div>
-            <div><span class="small-label">传感器频率</span><strong id="frame-rate">—</strong></div>
+            <div><span class="small-label">左腿力矩</span><strong id="left-torque">—</strong></div>
+            <div><span class="small-label">右腿力矩</span><strong id="right-torque">—</strong></div>
+            <div><span class="small-label">数据更新</span><strong id="frame-rate">—</strong></div>
             <div><span class="small-label">双侧摆腿</span><strong id="gait-state">—</strong></div>
           </div>
             <div class="twin-control" aria-label="外骨骼运动模式">
@@ -176,18 +176,18 @@
             <p id="ai-advice" role="status">运动建议：等待实时数据</p>
             <div class="twin-control-grid">
               <div class="twin-control-card">
-                <span>01 / ASSIST</span><h4>动力辅助</h4>
-                <p>顺着髋关节运动提供轻量辅助。首次启动采用 0.1 增益、0.5 N·m 上限。</p>
+                <span>01 / 助力</span><h4>动力辅助</h4>
+                <p>顺着腿部动作提供轻量辅助。</p>
                 <button id="start-assist" type="button" disabled>开启动力辅助</button>
               </div>
               <div class="twin-control-card">
-                <span>02 / RESIST</span><h4>健身阻力</h4>
-                <p>运动时施加轻量阻力。首次启动采用 0.3 增益、0.5 N·m 上限。</p>
+                <span>02 / 训练</span><h4>健身阻力</h4>
+                <p>运动时提供轻量阻力。</p>
                 <button id="start-resist" type="button" disabled>开启健身阻力</button>
               </div>
               <div class="twin-control-card" id="legacy-split-resist" hidden>
-                <span>03 / BALANCE</span><h4>左右独立阻力</h4>
-                <p>分别设置双腿阻力，单侧力矩仍限制在 0.5 N·m 以内。</p>
+                <span>03 / 双腿</span><h4>左右独立阻力</h4>
+                <p>分别设置左右腿的阻力强度。</p>
                 <div class="split-resist-inputs">
                   <label>左腿 <select id="left-resist-gain"><option value="0">关闭</option><option value="0.1">轻</option><option value="0.2">较轻</option><option value="0.3" selected>标准</option><option value="0.5">较强</option></select></label>
                   <label>右腿 <select id="right-resist-gain"><option value="0">关闭</option><option value="0.1">轻</option><option value="0.2">较轻</option><option value="0.3" selected>标准</option><option value="0.5">较强</option></select></label>
@@ -195,8 +195,8 @@
                 <button id="start-split-resist" type="button" disabled>开启独立阻力</button>
               </div>
               <div class="twin-control-card bilateral-card">
-                <span>03 / LEFT + RIGHT</span><h4>左右腿独立调节</h4>
-                <p>每侧分别选择松劲、动力辅助或健身阻力。单腿应用保留另一腿当前模式；也可同时应用两侧设置。助力增益最高 0.1，单侧力矩上限 0.5 N·m。</p>
+                <span>03 / 双腿</span><h4>左右腿独立调节</h4>
+                <p>为左右腿分别选择运动方式和强度，也可同时设置两侧。</p>
                 <div class="bilateral-legs">
                   <div class="bilateral-leg">
                     <strong>左腿</strong>
@@ -216,7 +216,7 @@
                 </div>
               </div>
             </div>
-            <p class="control-profile" id="control-profile" role="status">等待设备报告安全档</p>
+            <p class="control-profile" id="control-profile" role="status">等待确认设备状态</p>
             <div class="control-footer"><p id="control-reason" role="status">等待设备连接</p>
               <button id="control-zero" type="button" disabled>松劲</button>
             </div>
@@ -352,7 +352,7 @@
               <div class="mode-tracks"><i></i><i></i><i></i></div>
             </div>
             <h3>运动模式</h3>
-              <p>查看设备的实时角度与指令力矩。可为左右腿分别选择助力或阻力，也可同时设置双腿；设备就绪后才可开始。</p>
+              <p>查看腿部的实时动作与控制力度。可为左右腿分别选择助力或阻力，也可同时设置双腿；设备就绪后才可开始。</p>
           </article>
           <article class="product-card">
             <div class="product-number">03 / RECORDS</div>

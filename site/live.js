@@ -26,39 +26,39 @@ export function parseFrame(message) {
 export function liveState(status, frame, ageMs, connected) {
   if (!connected) return { label: "等待设备连接", level: "offline", usable: false };
   if (status.body === "sim")
-    return { label: "当前服务为仿真", level: "offline", usable: false };
+    return { label: "当前为演示画面", level: "offline", usable: false };
   if (status.state === "TRIPPED" && (!frame || ageMs >= STALE_MS || status.legs_offline))
-    return { label: "急停锁存 · 等待人工恢复", level: "warn", usable: false };
+    return { label: "设备保护已触发 · 需人工恢复", level: "warn", usable: false };
   if (status.state === "LEGS_OFF" || status.legs_offline)
-    return { label: "腿板数据无效", level: "warn", usable: false };
+    return { label: "设备读数异常", level: "warn", usable: false };
   if (status.state === "RECONN" || status.state === "OFFLINE")
-    return { label: "串口重连中", level: "offline", usable: false };
+    return { label: "正在连接设备", level: "offline", usable: false };
   if (!frame || ageMs >= STALE_MS)
-    return { label: "等待新数据", level: "offline", usable: false };
+    return { label: "等待设备数据", level: "offline", usable: false };
   if (status.state === "TRIPPED")
-    return { label: "设备急停 · 实时读数", level: "warn", usable: true };
+    return { label: "设备已停止 · 当前读数", level: "warn", usable: true };
   if (status.body !== "real")
-    return { label: "实时数据 · 来源未标记", level: "warn", usable: true };
+    return { label: "设备来源待确认", level: "warn", usable: true };
   if (status.state === "QUIET")
-    return { label: "真机数据 · 安全等待", level: "warn", usable: true };
-  return { label: "真机实时数据", level: "online", usable: true };
+    return { label: "设备准备中", level: "warn", usable: true };
+  return { label: "设备已连接", level: "online", usable: true };
 }
 
 export function controlState({ status, frame, frameAgeMs, statusAgeMs, connected, confirmed }) {
   if (connected && status.state === "TRIPPED")
-    return { ready: false, reason: "急停锁存：请在实时曲线控制台确认安全后重新武装" };
+    return { ready: false, reason: "设备保护已触发，请在控制台确认安全后恢复" };
   if (!connected || !frame || !Number.isFinite(frameAgeMs) ||
       !Number.isFinite(statusAgeMs) || frameAgeMs >= 1000 || statusAgeMs >= 3000)
-    return { ready: false, reason: "等待新鲜的设备数据" };
+    return { ready: false, reason: "等待设备数据更新" };
   if (status.body !== "real")
-    return { ready: false, reason: "控制服务未确认真机来源" };
+    return { ready: false, reason: "尚未确认连接到实际设备" };
   if (!(["table", "wearing"].includes(status.profile)))
-    return { ready: false, reason: "控制服务未报告安全档" };
+    return { ready: false, reason: "等待确认设备使用方式" };
   if (status.state !== "ARMED" || status.legs_offline || status.tripped ||
       !Number.isFinite(status.hz) || status.hz < 50)
     return { ready: false, reason: "设备尚未就绪" };
   if (!confirmed)
-    return { ready: false, reason: "请先确认设备放置状态与安全档" };
+    return { ready: false, reason: "请先确认设备当前使用方式" };
   return { ready: true, reason: "设备已就绪" };
 }
 

@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { connectTelemetry } from "./live.js";
+import { connectTelemetry } from "./live.js?v=20260924-ui";
 import { modeReadiness, modeCommand, splitResistCommand,
-  bilateralCommand, singleLegCommand } from "./control.js";
+  bilateralCommand, singleLegCommand } from "./control.js?v=20260924-ui";
 import { GaitPatternDetector, KneeFollower, YawFollower, kneeFlexRadians } from "./motion.js";
 
 const viewport = document.getElementById("twin-viewport");
@@ -52,7 +52,7 @@ const controlCurrent = document.getElementById("control-current");
 let viewer;
 let replay;
 let mode = "live";
-let live = { label: "正在检查连接", level: "offline", frame: null, status: {} };
+let live = { label: "正在连接设备", level: "offline", frame: null, status: {} };
 let playing = false;
 let elapsed = 0;
 let previous = 0;
@@ -223,7 +223,7 @@ function showFrame(frame, source) {
     gaitEl.textContent = gaitDetector.update(frame)
       ? "检测到交替摆腿" : "未检测到交替摆腿";
   } else {
-    gaitEl.textContent = "桌面记录";
+    gaitEl.textContent = "历史记录";
   }
   const { left, right } = frame;
   if (!neutral[source]) neutral[source] = { left, right };
@@ -293,8 +293,8 @@ function updateMode() {
     stateEl.textContent = live.label;
     stateEl.dataset.level = live.level;
     sourceEl.textContent = live.frame
-      ? live.status.body === "real" ? "真机实时数据" : "实时数据 · 来源未标记"
-      : "等待真机数据";
+      ? live.status.body === "real" ? "设备实时动作" : "设备来源待确认"
+      : "等待设备数据";
     if (live.frame) {
       showFrame(live.frame, "live");
       rateEl.textContent = Number.isFinite(live.status.hz)
@@ -306,10 +306,10 @@ function updateMode() {
     }
   } else {
     gaitDetector.clear();
-    gaitEl.textContent = "桌面记录";
-    stateEl.textContent = "桌面标定记录";
+    gaitEl.textContent = "历史记录";
+    stateEl.textContent = "正在查看历史记录";
     stateEl.dataset.level = "warn";
-    sourceEl.textContent = "历史桌面实测记录";
+    sourceEl.textContent = "已保存的记录";
     rateEl.textContent = "—";
     if (replay?.frames?.length) showFrame(replayFrame(replay.frames[0]), "replay");
     else clearReadings();
@@ -329,10 +329,10 @@ function updateControls() {
     safetyDialog.close();
   }
   controlProfile.textContent = live.connected && live.statusAgeMs < 3000
-    ? profile === "table" ? "桌面档 · 仅限设备未穿戴时测试"
-      : profile === "wearing" ? "穿戴档 · 首次发送前确认穿戴检查与急停"
-        : "等待设备报告安全档"
-    : "等待设备报告安全档";
+    ? profile === "table" ? "桌面测试 · 仅限设备未穿戴时使用"
+      : profile === "wearing" ? "穿戴使用 · 启动前确认穿戴安全"
+        : "等待确认设备状态"
+    : "等待确认设备状态";
   assistButton.disabled = resistButton.disabled = !canControl;
   const bilateralSupported = live.status?.capabilities?.bilateral_modes === true;
   const splitSupported = live.status?.capabilities?.split_resist === true;
@@ -342,17 +342,23 @@ function updateControls() {
   for (const button of [applyLeftLeg, applyRightLeg, applyBothLegs])
     button.disabled = !canControl || !bilateralSupported;
   zeroButton.disabled = !live.connected;
-  const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
+  const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力",
+    hold: "姿势保持", torque: "固定力度" };
+  const strength = (mode, gain) => {
+    if (mode === "assist") return gain <= 0.05 ? "很轻" : "轻";
+    if (mode === "resist") return gain <= 0.1 ? "很轻"
+      : gain <= 0.2 ? "较轻" : gain <= 0.3 ? "标准" : "较强";
+    return "";
+  };
+  const legStatus = (side, mode, gain) => `${side}腿${names[mode] || "状态待确认"}` +
+    (Number.isFinite(gain) && strength(mode, gain) ? `（${strength(mode, gain)}）` : "");
   const active = live.status?.policy === "bilateral"
-    ? `左${names[live.status.mode_l] || live.status.mode_l} ${live.status.gain_l}` +
-      ` / 右${names[live.status.mode_r] || live.status.mode_r} ${live.status.gain_r}`
-    : names[live.status?.policy] || live.status?.policy;
+    ? `${legStatus("左", live.status.mode_l, live.status.gain_l)} / ` +
+      legStatus("右", live.status.mode_r, live.status.gain_r)
+    : names[live.status?.policy] || "设备状态待确认";
   controlCurrent.textContent = live.connected && live.statusAgeMs < 3000 && live.status?.policy
     ? `当前模式：${active}` +
-      (live.status?.decision?.autopilot ? " · 自动控制" : "") +
-      (live.status?.policy !== "bilateral" &&
-       Number.isFinite(live.status.gain_l) && Number.isFinite(live.status.gain_r)
-        ? ` · 左 ${live.status.gain_l} / 右 ${live.status.gain_r}` : "")
+      (live.status?.decision?.autopilot ? " · 自动调节中" : "")
     : "当前模式：等待设备";
   const advice = live.status?.decision?.last;
   const recent = Number.isFinite(advice?.t) && Date.now() - advice.t * 1000 < 20000;
@@ -362,7 +368,7 @@ function updateControls() {
     : live.status?.state !== "ARMED" || live.status?.legs_offline || live.status?.tripped
       ? "运动建议：当前仅可松劲"
       : recent
-        ? `运动建议：${names[advice.applied] || advice.applied} · ${advice.backend === "llm" ? "EvoMap" : "本地规则"}${advice.held_by === "safety" ? " · 安全限制" : ""}`
+        ? `运动建议：${names[advice.applied] || "请查看设备状态"}${advice.held_by === "safety" ? " · 设备保护中" : ""}`
         : "运动建议：等待运动分析";
   controlReason.textContent = mode !== "live" ? "切换到实时数据后可操作"
     : canControl && confirmedProfile !== profile
@@ -378,8 +384,8 @@ function runControlAction(buildCommand, successText = "请求已发送，等待�
     if (confirmedProfile !== profile) {
       pendingControl = { profile, buildCommand, successText };
       safetyMessage.textContent = profile === "table"
-        ? "当前是桌面档。请确认设备放在桌面或支架上、无人穿戴，且可以立即急停。"
-        : "当前是穿戴档。请确认已完成穿戴前检查、急停可达，并从低强度开始。";
+        ? "请确认设备放在桌面或支架上、无人穿戴，并能随时停止设备。"
+        : "请确认已完成穿戴前检查、可以随时停止设备，并从轻强度开始。";
       safetyDialog.showModal();
       return;
     }
@@ -399,7 +405,7 @@ safetySend.addEventListener("click", () => {
   safetyDialog.close();
   if (!pending) return;
   if (live.status?.profile !== pending.profile) {
-    controlReason.textContent = "安全档已变化，请重新选择运动模式";
+    controlReason.textContent = "设备使用状态已变化，请重新选择运动方式";
     return;
   }
   const preflight = modeReadiness(live, pending.profile);
@@ -509,7 +515,7 @@ function resize() {
 
 async function startViewer() {
   loadButton.disabled = true;
-  loadButton.textContent = "正在载入 3D 视图…";
+  loadButton.textContent = "正在打开动作画面…";
   errorEl.hidden = true;
   try {
     const [configResponse, replayResponse] = await Promise.all([
@@ -589,9 +595,9 @@ async function startViewer() {
     requestAnimationFrame(render);
   } catch (error) {
     loadButton.disabled = false;
-    loadButton.innerHTML = "重试 3D 视图 <span>↗</span>";
-    errorEl.textContent =
-      error instanceof Error ? error.message : "3D 视图暂时不可用";
+    console.error("3D 画面加载失败", error);
+    loadButton.innerHTML = "重试动作画面 <span>↗</span>";
+    errorEl.textContent = "画面暂时无法显示，请重试";
     errorEl.hidden = false;
   }
 }
@@ -613,7 +619,7 @@ humanButton.addEventListener("click", () => {
   humanVisible = !humanVisible;
   if (viewer?.human) viewer.human.root.visible = humanVisible;
   humanButton.setAttribute("aria-pressed", String(humanVisible));
-  humanButton.textContent = `半透明人体：${humanVisible ? "显示" : "隐藏"}`;
+  humanButton.textContent = humanVisible ? "隐藏人物" : "显示人物";
 });
 alignButton.addEventListener("click", () => {
   if (!viewer || !live.frame || mode !== "live") return;
@@ -626,7 +632,7 @@ turnButton.addEventListener("click", () => {
   if (turnEnabled && live.frame) yawFollower.align(live.frame.yaw, live.frame.receivedAt);
   if (viewer?.holder) viewer.holder.rotation.y = 0;
   turnButton.setAttribute("aria-pressed", String(turnEnabled));
-  turnButton.textContent = `转身跟随：${turnEnabled ? "开" : "关"}`;
+  turnButton.textContent = `转身同步：${turnEnabled ? "开" : "关"}`;
 });
 replayButton.addEventListener("click", () => {
   playing = !playing;

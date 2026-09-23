@@ -37,10 +37,10 @@ test("never treats simulation, leg dropout, or stale samples as live movement", 
   assert.equal(liveState({ body: "real" }, frame, 20, false).usable, false);
   assert.equal(liveState({ body: "real", state: "ARMED" }, frame, 20, true).usable, true);
   assert.deepEqual(liveState({ body: "real", state: "TRIPPED" }, frame, 20, true), {
-    label: "设备急停 · 实时读数", level: "warn", usable: true,
+    label: "设备已停止 · 当前读数", level: "warn", usable: true,
   });
   assert.deepEqual(liveState({ body: "real", state: "TRIPPED", legs_offline: true }, frame, 20, true), {
-    label: "急停锁存 · 等待人工恢复", level: "warn", usable: false,
+    label: "设备保护已触发 · 需人工恢复", level: "warn", usable: false,
   });
 });
 
@@ -50,7 +50,7 @@ test("mode controls require verified real source, profile and fresh armed data",
     connected: true, confirmed: true };
   assert.equal(controlState(base).ready, true);
   assert.match(controlState({ ...base, frame: null,
-    status: { ...base.status, state: "TRIPPED" } }).reason, /急停锁存/);
+    status: { ...base.status, state: "TRIPPED" } }).reason, /确认安全后恢复/);
   for (const change of [
     { connected: false }, { frameAgeMs: 1000 }, { statusAgeMs: 3000 },
     { confirmed: false }, { status: { ...base.status, body: "sim" } },
@@ -68,8 +68,8 @@ test("mode controls require verified real source, profile and fresh armed data",
   assert.throws(() => modeCommand("assist", { ready: false, reason: "不就绪" }), /不就绪/);
   assert.deepEqual(splitResistCommand(0.3, 0.1, { ready: true }, true),
     { op: "policy", policy: "resist", gain: 0.2, gain_l: 0.3, gain_r: 0.1, max: 0.5 });
-  assert.throws(() => splitResistCommand(0.3, 0.1, { ready: true }, false), /不支持/);
-  assert.throws(() => splitResistCommand(0.6, 0.1, { ready: true }, true), /0.5/);
+  assert.throws(() => splitResistCommand(0.3, 0.1, { ready: true }, false), /暂不可用/);
+  assert.throws(() => splitResistCommand(0.6, 0.1, { ready: true }, true), /强度/);
 });
 
 test("bilateral controls are atomic, bounded and require new-service capability", () => {
@@ -84,12 +84,12 @@ test("bilateral controls are atomic, bounded and require new-service capability"
     { policy: "bilateral", mode_l: "zero", gain_l: 0,
       mode_r: "resist", gain_r: 0.3 }, ready, true),
   bilateralCommand(left, right, ready, true));
-  assert.throws(() => bilateralCommand(left, right, ready, false), /不支持/);
+  assert.throws(() => bilateralCommand(left, right, ready, false), /暂不可用/);
   assert.throws(() => bilateralCommand(left, right, { ready: false, reason: "离线" }, true), /离线/);
-  assert.throws(() => bilateralCommand({ mode: "assist", gain: 0.2 }, right, ready, true), /0.1/);
-  assert.throws(() => bilateralCommand({ mode: "zero", gain: 0.1 }, right, ready, true), /0/);
+  assert.throws(() => bilateralCommand({ mode: "assist", gain: 0.2 }, right, ready, true), /强度/);
+  assert.throws(() => bilateralCommand({ mode: "zero", gain: 0.1 }, right, ready, true), /强度/);
   assert.throws(() => singleLegCommand("r", right,
-    { policy: "assist", gain: 0.2 }, ready, true), /0.1/);
+    { policy: "assist", gain: 0.2 }, ready, true), /强度/);
 });
 
 test("bilateral alternating hip motion is detected without claiming one-leg movement as gait", () => {
