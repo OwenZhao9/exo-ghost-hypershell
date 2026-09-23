@@ -1,5 +1,13 @@
 import {createVoicePlayer} from './voice.js';
 
+export function verifiedDirection(shot) {
+  if (!shot || shot.jev_status !== 'accepted' || shot.jev_backend !== 'jev' ||
+      shot.vision_direction !== shot.direction ||
+      !Number.isFinite(shot.vision_confidence) || shot.vision_confidence < 0.85 ||
+      !Number.isFinite(shot.jev_confidence) || shot.jev_confidence < 0.75) return null;
+  return shot.direction === 'left' || shot.direction === 'right' ? shot.direction : null;
+}
+
 export async function mount(root, {api, config, device, ui}) {
   ui.heading(root, '眼镜看一看', '连续拍照时，最新照片显示在最上方，识别结果标注在对应照片上。');
   const note = ui.el('p', '每条判断只对应那张照片，不能判断此刻道路是否可通行。', 'inline-note');
@@ -182,23 +190,34 @@ export async function mount(root, {api, config, device, ui}) {
           if (!disposed) body.append(ui.el('p', '这张照片暂时无法读取。', 'muted'));
         });
       }
-      const direction = shot.direction === 'left' ? '画面左侧较空（演示）' :
-        shot.direction === 'right' ? '画面右侧较空（演示）' : '无法判断方向';
+      const approved = verifiedDirection(shot);
+      const direction = approved === 'left' ? '画面左侧较空（演示）' :
+        approved === 'right' ? '画面右侧较空（演示）' : '无法判断方向';
       row.message.className = shot.state === 'complete' ? 'guide-capture-result' : 'muted';
       row.message.textContent = shot.state === 'queued' ? '等待识别这张照片…' :
-        shot.state === 'analyzing' ? '正在识别这张照片…' :
+        shot.state === 'analyzing' ? '正在识别并判断这张照片…' :
         shot.state === 'interrupted' ? '识别未完成' :
         shot.state === 'error' ? '识别失败' : direction;
+      const jevState = {
+        accepted: 'jEV 判断通过', unavailable: 'jEV 暂不可用',
+        low_confidence: 'jEV 判断不确定', disagreed: '两次判断不一致',
+        vision_uncertain: '照片证据不足',
+      }[shot.jev_status];
+      const visualResult = shot.vision_direction === 'left' ? '识别：画面左侧较空' :
+        shot.vision_direction === 'right' ? '识别：画面右侧较空' :
+        shot.vision_direction === 'unknown' ? '识别：方向不明确' : '';
       row.detail.textContent = [shot.description, shot.error,
         `拍照 ${shot.capture_seconds} 秒`,
-        shot.analysis_seconds != null ? `识别 ${shot.analysis_seconds} 秒` : ''].filter(Boolean).join(' · ');
+        shot.analysis_seconds != null ? `识别与判断 ${shot.analysis_seconds} 秒` : '',
+        shot.state === 'complete' ? visualResult : '',
+        shot.state === 'complete' ? jevState : ''].filter(Boolean).join(' · ');
       const signature = JSON.stringify([shot.state, shot.direction, shot.annotations]);
       if (row.annotationSignature !== signature) {
         row.annotationSignature = signature;
         row.overlay.replaceChildren();
         if (shot.state === 'complete' && shot.analysis_seconds != null) {
-          const badge = shot.direction === 'left' ? '左侧较空' :
-            shot.direction === 'right' ? '右侧较空' : '无法判断';
+          const badge = approved === 'left' ? '左侧较空' :
+            approved === 'right' ? '右侧较空' : '无法判断';
           const annotations = Array.isArray(shot.annotations) ? shot.annotations : [];
           if (!annotations.length) row.overlay.append(ui.el('span', badge, 'guide-annotation-badge'));
           for (const item of annotations) {
@@ -218,20 +237,19 @@ export async function mount(root, {api, config, device, ui}) {
       const previousState = seenStates.get(shot.filename);
       if (voiceArmed && shot.state === 'complete' && previousState !== 'complete' &&
           (previousState !== undefined || shot.captured_at >= voiceStartedAt - 1)) {
-        voice.enqueue(shot.direction === 'left' || shot.direction === 'right' ?
-          shot.direction : 'unknown');
+        voice.enqueue(approved || 'unknown');
       }
       if (motorArmed && shot.state === 'complete' && previousState !== 'complete' &&
           Number.isFinite(shot.capture_started_at) && shot.capture_started_at >= motorStartedAt) {
-        if (shot.direction === 'left' || shot.direction === 'right') {
+        if (approved) {
           if (Date.now() / 1000 - shot.captured_at > 60 ||
               !Number.isFinite(shot.analyzed_at) || Date.now() / 1000 - shot.analyzed_at > 5) {
             motorInfo = '照片结果已经过期，本次不动作。';
           } else {
             try {
-              device.send({op: 'guide_cue', direction: shot.direction});
-              pendingMotor = {direction: shot.direction, sentAt: Date.now()};
-              motorInfo = shot.direction === 'right' ? '已请求左腿抬起，等待设备确认。' : '已请求右腿抬起，等待设备确认。';
+              device.send({op: 'guide_cue', direction: approved});
+              pendingMotor = {direction: approved, sentAt: Date.now()};
+              motorInfo = approved === 'right' ? '已请求左腿抬起，等待设备确认。' : '已请求右腿抬起，等待设备确认。';
             } catch (error) { motorInfo = error.message; }
           }
         } else { motorInfo = '无法判断方向，本次不动作。'; }

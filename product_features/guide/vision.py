@@ -142,7 +142,7 @@ def analyze_demo_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) ->
                 not 0 < len(description.strip()) <= 240):
             raise ValueError
     except (ValueError, TypeError, KeyError):
-        return {'direction': 'unknown', 'description': '画面判断不明确。',
+        return {'direction': 'unknown', 'confidence': 0.0, 'description': '画面判断不明确。',
                 'annotations': []}
     description = description.strip()
     annotations = []
@@ -163,5 +163,6 @@ def analyze_demo_jpeg(jpeg: bytes, *, key: str | None = None, opener=urlopen) ->
     if (confidence < 0.85 or any(word in description for word in
                                  ('模糊', '看不清', '无法确认', '不清楚', '不确定'))):
         direction = 'unknown'
-    return {'direction': direction, 'description': description,
+    return {'direction': direction, 'confidence': confidence if direction != 'unknown' else 0.0,
+            'description': description,
             'annotations': annotations}

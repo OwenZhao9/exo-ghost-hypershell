@@ -11,7 +11,7 @@
     <title>Ghost / 外骨骼行动系统</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" as="image" href="assets/hypershell-front.webp" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260923-jev" />
     <script type="importmap">
       {
         "imports": {
@@ -317,7 +317,7 @@
               <span>PHOTO / VIEW</span><strong>◉</strong><small>↗</small>
             </div>
             <h3>眼镜看一看</h3>
-            <p>真机眼镜 Demo 连续拍照时，上一张交给 EvoMap 识别，眼镜继续拍下一张。新照片显示在列表最上方；识别后在对应照片上标注判断和可识别物体，并通过电脑播放对应的语音提示。旧记录保留。另有默认关闭的支架电机演示，可将新识别的右/左结果请求为左/右腿单次抬起；真机动作待现场验收，不用于实际导盲。</p>
+            <p>真机眼镜 Demo 连续拍照时，上一张交给 EvoMap 识别，眼镜继续拍下一张。新照片显示在最上方，并标注可见物体。识别结果随后交给 jEV 复核；只有两次判断同向且置信度足够时才给出左/右提示，否则显示无法判断。当前尚未配置 jEV 服务密钥，远端复核未现场验收。默认关闭的支架电机演示也只接受复核通过的新照片结果；真机动作待验收，不用于实际导盲。</p>
           </article>
         </div>
         <div class="product-actions">

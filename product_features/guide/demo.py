@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from .decision import decide_visual_cue
 from .vision import analyze_demo_jpeg, photo_path
 
 UNIT_NAME = re.compile(r'E\d{2}-[0-9A-F]{4}\Z')
@@ -195,6 +196,9 @@ class DemoCapture:
                             'capture_seconds': round(seconds, 1),
                             'analysis_started_at': None, 'analyzed_at': None,
                             'analysis_seconds': None, 'direction': 'unknown',
+                            'vision_direction': 'unknown', 'vision_confidence': 0.0,
+                            'jev_status': 'pending', 'jev_backend': 'none',
+                            'jev_confidence': 0.0, 'jev_seconds': None,
                             'description': '', 'annotations': [], 'error': None,
                             'state': 'queued' if self.recognize else 'complete'})
                     self._save_history()
@@ -234,15 +238,22 @@ class DemoCapture:
                                        analysis_started_at=started_at)
                     try:
                         path = photo_path(self.directory, filename)
-                        decision = analyze_demo_jpeg(path.read_bytes())
+                        vision = analyze_demo_jpeg(path.read_bytes())
+                        decision = decide_visual_cue(vision)
                         seconds = round(time.monotonic() - started, 1)
                         self._update_entry(filename, state='complete',
                                            direction=decision['direction'],
-                                           description=decision['description'],
-                                           annotations=decision.get('annotations', []),
+                                           vision_direction=vision['direction'],
+                                           vision_confidence=vision.get('confidence', 0.0),
+                                           jev_status=decision['jev_status'],
+                                           jev_backend=decision['jev_backend'],
+                                           jev_confidence=decision['jev_confidence'],
+                                           jev_seconds=decision['jev_seconds'],
+                                           description=vision['description'],
+                                           annotations=vision.get('annotations', []),
                                            analysis_seconds=seconds, analyzed_at=time.time())
                         self._set(direction=decision['direction'],
-                                  description=decision['description'],
+                                  description=vision['description'],
                                   analysis_seconds=seconds)
                     except (OSError, ValueError) as error:
                         self._update_entry(filename, state='error', error=str(error),

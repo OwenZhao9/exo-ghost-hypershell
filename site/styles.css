@@ -1164,7 +1164,7 @@ footer {
   }
   .asterisk {
     position: absolute;
-    right: 0;
+    right: 20px;
     bottom: -30px;
     font-size: 110px;
   }

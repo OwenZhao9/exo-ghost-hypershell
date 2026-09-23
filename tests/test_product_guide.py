@@ -98,13 +98,17 @@ pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
 ''')
     fake.chmod(0o700)
     store = Store(tmp_path / 'product.db')
-    decisions = iter([{'direction': 'left', 'description': '左侧可见空地。'},
-                      {'direction': 'right', 'description': '右侧可见空地。'}])
+    decisions = iter([{'direction': 'left', 'confidence': .9, 'description': '左侧可见空地。'},
+                      {'direction': 'right', 'confidence': .9, 'description': '右侧可见空地。'}])
     monkeypatch.setattr('product_features.guide.demo.analyze_demo_jpeg', lambda _: next(decisions))
+    monkeypatch.setattr('product_features.guide.demo.decide_visual_cue',
+                        lambda vision: {'direction': vision['direction'],
+                                        'jev_status': 'accepted', 'jev_backend': 'jev',
+                                        'jev_confidence': .95, 'jev_seconds': .1})
     demo = DemoCapture(fake, shots, 'E06-0194', recognize=True,
                        pause_seconds=2, max_frames=2, store=store)
     demo.start()
-    until = time.monotonic() + 6
+    until = time.monotonic() + 10
     while (len(demo.status()['history']) < 2 or demo.status()['running']) and time.monotonic() < until:
         time.sleep(.02)
     demo.stop()
@@ -135,6 +139,10 @@ pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
                 'annotations': [{'label': '桌子', 'box': [.2, .3, .4, .2]}]}
 
     monkeypatch.setattr('product_features.guide.demo.analyze_demo_jpeg', analyze)
+    monkeypatch.setattr('product_features.guide.demo.decide_visual_cue',
+                        lambda vision: {'direction': 'unknown', 'jev_status': 'vision_uncertain',
+                                        'jev_backend': 'none', 'jev_confidence': 0,
+                                        'jev_seconds': None})
     demo = DemoCapture(fake, shots, 'E06-0194', recognize=True,
                        pause_seconds=.02, max_frames=2)
     demo.start()
@@ -169,6 +177,10 @@ pathlib.Path(sys.argv[3]).write_bytes(b'\\xff\\xd8\\xff\\xe0photo\\xff\\xd9')
         return {'direction': 'unknown', 'description': '画面较暗。', 'annotations': []}
 
     monkeypatch.setattr('product_features.guide.demo.analyze_demo_jpeg', analyze)
+    monkeypatch.setattr('product_features.guide.demo.decide_visual_cue',
+                        lambda vision: {'direction': 'unknown', 'jev_status': 'vision_uncertain',
+                                        'jev_backend': 'none', 'jev_confidence': 0,
+                                        'jev_seconds': None})
     demo = DemoCapture(fake, shots, 'E06-0194', recognize=True,
                        pause_seconds=0, max_frames=3)
     demo.start()

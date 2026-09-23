@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createVoicePlayer} from '../product_features/guide/voice.js';
+import {verifiedDirection} from '../product_features/guide/view.js';
+
+test('only a matching jEV review can become a spoken or motor direction', () => {
+  const reviewed = {direction: 'right', vision_direction: 'right',
+    vision_confidence: .92, jev_confidence: .9,
+    jev_status: 'accepted', jev_backend: 'jev'};
+  assert.equal(verifiedDirection(reviewed), 'right');
+  assert.equal(verifiedDirection({...reviewed, jev_backend: 'rules'}), null);
+  assert.equal(verifiedDirection({...reviewed, vision_direction: 'left'}), null);
+  assert.equal(verifiedDirection({...reviewed, jev_confidence: .5}), null);
+  assert.equal(verifiedDirection({...reviewed, jev_status: 'unavailable'}), null);
+});
 
 test('voice cues play in order and stop interrupts the current cue', () => {
   const clips = [];
