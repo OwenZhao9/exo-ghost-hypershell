@@ -40,7 +40,6 @@ const rightLegGain = document.getElementById("right-leg-gain");
 const applyLeftLeg = document.getElementById("apply-left-leg");
 const applyRightLeg = document.getElementById("apply-right-leg");
 const applyBothLegs = document.getElementById("apply-both-legs");
-const bilateralAvailability = document.getElementById("bilateral-availability");
 const zeroButton = document.getElementById("control-zero");
 const estopButton = document.getElementById("control-estop");
 const controlProfile = document.getElementById("control-profile");
@@ -343,9 +342,6 @@ function updateControls() {
     !splitSupported;
   for (const button of [applyLeftLeg, applyRightLeg, applyBothLegs])
     button.disabled = !canControl || !bilateralSupported;
-  bilateralAvailability.textContent = !bilateralSupported
-    ? "当前控制服务尚不支持左右独立助力与阻力"
-    : canControl ? "设备已就绪，请确认两侧选择后应用" : preflight.reason;
   zeroButton.disabled = estopButton.disabled = !live.connected;
   const names = { zero: "松劲", assist: "动力辅助", resist: "健身阻力" };
   const active = live.status?.policy === "bilateral"

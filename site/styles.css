@@ -631,7 +631,6 @@ p {
 .bilateral-leg select { width: 100%; min-width: 0; padding: 8px; color: #eef4eb; background: #19291d; border: 1px solid #ffffff42; }
 .bilateral-leg button { grid-column: 1 / -1; }
 .bilateral-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 14px; }
-.bilateral-actions span { color: #a9b6a7; font-size: 12px; }
 .twin-control button { border: 1px solid var(--accent); background: var(--accent); color: #172015; padding: 11px 15px; cursor: pointer; }
 .twin-control button:disabled { opacity: .4; cursor: not-allowed; }
 .control-profile { margin: 20px 0 12px; color: #c8d2c3; font-size: 12px; }
