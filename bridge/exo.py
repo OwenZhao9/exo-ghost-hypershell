@@ -26,7 +26,7 @@ import serial  # pyserial
 
 from .limits import clamp, effective_limit, ramp_step, step_toward
 from .logger import SessionLogger
-from .ports import find_port, permission_hint
+from .ports import find_port, permission_hint, port_candidates
 from .protocol import (
     BAUD,
     DEFAULT_LIMIT_NM,
@@ -99,6 +99,8 @@ class ExoBridge:
         self._send_torque_flag = False
         self._supervisor: Optional[threading.Thread] = None
         self._reconnecting = False
+        self._reconnect_lock = threading.Lock()
+        self._recovery_thread: Optional[threading.Thread] = None
         atexit.register(self.close)
 
     # ---------- 连接 ----------
@@ -130,6 +132,16 @@ class ExoBridge:
     def on_event(self, cb: Callable[[str], None]) -> None:
         """事件回调：'stall' / 'reconnected' / 'reconnect_failed' / 'trip:<原因>'"""
         self._on_event.append(cb)
+
+    def start_recovery(self, send_torque: bool = True) -> None:
+        """启动后台持续找设备；允许服务在未插串口时先打开仪表盘。"""
+        self._send_torque_flag = send_torque
+        if self._stop.is_set() or self.tripped:
+            return
+        if self._recovery_thread and self._recovery_thread.is_alive():
+            return
+        self._recovery_thread = threading.Thread(target=self._reconnect, name="exo-recovery", daemon=True)
+        self._recovery_thread.start()
 
     def _emit(self, ev: str) -> None:
         for cb in self._on_event:
@@ -347,7 +359,7 @@ class ExoBridge:
             if line.startswith("ERR,NOT_ENABLED") and self.enabled and not self.tripped and not self._reconnecting:
                 # 我们以为在使能，设备说没有 → 设备侧复位过（主板重启等），立刻重新 ENABLE
                 self._emit("device_lost_enable")
-                threading.Thread(target=self._reconnect, daemon=True).start()
+                self.start_recovery(send_torque=self._send_torque_flag)
         with self._resp_cv:
             self._responses.append(line)
             self._resp_cv.notify_all()
@@ -427,61 +439,74 @@ class ExoBridge:
                 low_since = None
 
     def _reconnect(self) -> None:
-        """数据流停了：关串口→重开→重新 ENABLE→恢复续发。期间设备看门狗已把力矩清零。"""
-        self._reconnecting = True
-        self._emit("stall")
-        want_torque = self._send_torque_flag
-        # 停掉发送线程
-        self.enabled = False
-        if self._sender and self._sender.is_alive():
-            self._sender.join(timeout=0.5)
-        # 关掉旧读线程与串口
-        old_stop = self._stop
-        self._stop = threading.Event()   # 新线程用新的 stop 事件
-        old_stop.set()
+        """断流或启动时无设备：始终轮询所有候选端口，验证协议后以零力矩恢复。"""
+        if not self._reconnect_lock.acquire(blocking=False):
+            return
         try:
-            if self.ser and self.ser.is_open:
-                self.ser.close()
-        except Exception:
-            pass
-        if self._reader and self._reader.is_alive():
-            self._reader.join(timeout=0.5)
-        time.sleep(0.3)
-        ok = False
-        for attempt in range(40):            # 最多约 40 s：覆盖用户拔线→关机→开机→插回的全过程
+            self._reconnecting = True
+            self.enabled = False
+            self.set_torque(0.0, 0.0)
+            self._emit("stall")
+            if self._sender and self._sender.is_alive() and threading.current_thread() is not self._sender:
+                self._sender.join(timeout=0.5)
             try:
-                port = find_port()
-                if not port:
-                    raise RuntimeError("串口未出现")
-                self.port = port
-                self.ser = serial.Serial(self.port, self.baud, timeout=0.05, write_timeout=0.2)
-                time.sleep(0.05); self.ser.reset_input_buffer()
-                self._reader = threading.Thread(target=self._read_loop, name="exo-reader", daemon=True)
-                self._reader.start()
-                self.ping()
-                self.command("ENABLE", "OK,ENABLE")
-                ok = True
-                break
-            except Exception as e:
-                self.last_err = f"reconnect#{attempt+1}: {e}"
-                try:
-                    if self.ser: self.ser.close()
-                except Exception:
-                    pass
-                time.sleep(1.0)
-        if ok:
-            self.n_reconnects += 1
-            self.enabled = True
-            self._current = (0.0, 0.0)
-            self.last_sample_t = time.time()
-            if want_torque:
-                self._sender = threading.Thread(target=self._send_loop, name="exo-sender", daemon=True)
-                self._sender.start()
-            self._emit("reconnected")
-        else:
-            self._emit("reconnect_failed")
-            self.tripped = "串口重连失败"
-        self._reconnecting = False
+                if self.ser:
+                    self.ser.close()
+            except Exception:
+                pass
+            if self._reader and self._reader.is_alive() and threading.current_thread() is not self._reader:
+                self._reader.join(timeout=0.5)
+            self.ser = None
+            self.latest = None
+            self._sample_times.clear()
+            attempt = 0
+            while not self._stop.is_set() and not self.tripped:
+                candidates = port_candidates(self.port)
+                for port in candidates:
+                    if self._stop.is_set() or self.tripped:
+                        break
+                    attempt += 1
+                    try:
+                        self.ser = serial.Serial(port, self.baud, timeout=0.05, write_timeout=0.2)
+                        time.sleep(0.05)
+                        self.ser.reset_input_buffer()
+                        self._reader = threading.Thread(target=self._read_loop, name="exo-reader", daemon=True)
+                        self._reader.start()
+                        self.ping()
+                        self.version()  # 只接收本项目固件，不把其他串口设备 ENABLE
+                        self.command("ENABLE", "OK,ENABLE")
+                        if self._stop.is_set() or self.tripped:
+                            self.disable()
+                            break
+                        self.port = port
+                        self._current = (0.0, 0.0)
+                        self.set_torque(0.0, 0.0)
+                        self.last_sample_t = time.time()
+                        self._enabled_at = self.last_sample_t
+                        self._device_disabled = False
+                        self._open_log()
+                        self.n_reconnects += 1
+                        self._emit("reconnected")
+                        self.enabled = True
+                        self._reconnecting = False
+                        if self._send_torque_flag:
+                            self._sender = threading.Thread(target=self._send_loop, name="exo-sender", daemon=True)
+                            self._sender.start()
+                        return
+                    except Exception as e:
+                        self.last_err = f"reconnect#{attempt} {port}: {e}"
+                        try:
+                            if self.ser:
+                                self.ser.close()
+                        except Exception:
+                            pass
+                        if self._reader and self._reader.is_alive():
+                            self._reader.join(timeout=0.2)
+                        self.ser = None
+                self._stop.wait(0.25)  # 热插拔后下一轮立即扫描；不设重试次数上限
+        finally:
+            self._reconnecting = False
+            self._reconnect_lock.release()
 
     # ---------- 状态 ----------
     def stream_hz(self) -> float:
@@ -503,17 +528,19 @@ class ExoBridge:
         self._logger.open()
 
     def close(self) -> None:
-        if self.ser is None:
-            return
+        self._stop.set()
         try:
-            self.disable()
+            if self.ser is not None:
+                self.disable()
         finally:
-            self._stop.set()
+            if self._recovery_thread and self._recovery_thread.is_alive() and threading.current_thread() is not self._recovery_thread:
+                self._recovery_thread.join(timeout=0.5)
             if self._reader and self._reader.is_alive() and threading.current_thread() is not self._reader:
                 self._reader.join(timeout=0.5)
             self._logger.close()
             try:
-                self.ser.close()
+                if self.ser is not None:
+                    self.ser.close()
             finally:
                 self.ser = None
 

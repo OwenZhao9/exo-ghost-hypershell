@@ -16,14 +16,17 @@ HEADER = (f"{'时间':>8} {'状态':>8} {'策略':>7} {'gain':>5} {'Hz':>4} | "
 
 
 def device_state(*, tripped: Optional[str], armed: bool,
-                 legs_offline: bool, reconnecting: bool) -> str:
+                 legs_offline: bool, reconnecting: bool,
+                 connected: bool = True, quiet: bool = False) -> str:
     """把几个布尔量归纳成一个状态词，仪表盘和终端共用。"""
     if tripped or not armed:
         return "TRIPPED"
+    if reconnecting or not connected:
+        return "RECONN"
     if legs_offline:
         return "LEGS_OFF"
-    if reconnecting:
-        return "RECONN"
+    if quiet:
+        return "QUIET"
     return "ARMED"
 
 

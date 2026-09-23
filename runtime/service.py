@@ -14,6 +14,7 @@ import queue
 import time
 from typing import Optional
 
+import control.policies as P
 from bridge.exo import ExoBridge
 from bridge.protocol import DPS_SATURATION
 from control.safety import PROFILES
@@ -48,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--min-confidence", type=float, default=0.55,
                     help="置信度门控阈值：低于它就保持原策略不动")
     ap.add_argument("--decide-period", type=float, default=2.0, help="每隔几秒决策一次")
-    ap.add_argument("--body", choices=["auto", "real", "sim"], default="auto",
+    ap.add_argument("--body", choices=["auto", "real", "sim"], default="real",
                     help="用哪具身体：real=真外骨骼，sim=数字义体，auto=找不到真机就用义体")
     return ap
 
@@ -63,10 +64,10 @@ def make_bridge(a, session):
     if want == "sim":
         from bridge.sim import SimBridge
         print("身体：数字义体（sim）—— 参数来自真机录制的辨识结果", flush=True)
-        return SimBridge(torque_limit=a.limit, ramp_nm_per_s=a.ramp, safety_check=safety).open()
+        return SimBridge(torque_limit=a.limit, ramp_nm_per_s=a.ramp, safety_check=safety)
     print("身体：真外骨骼（real）", flush=True)
     return ExoBridge(port=a.port, torque_limit=a.limit, ramp_nm_per_s=a.ramp,
-                     safety_check=safety).open()
+                     safety_check=safety)
 
 
 def read_cmd_file(last_seq: int) -> Optional[dict]:
@@ -93,6 +94,17 @@ def main(argv: Optional[list[str]] = None) -> None:
     stats = {"n": 0, "work": 0.0, "last_t": None, "scale": 1.0}
 
     journal = Journal()          # 路径要等 ENABLE 之后才知道，见下面 set_path
+    journal_started = False
+
+    def start_journal(version: str) -> None:
+        nonlocal journal_started
+        if journal_started or not bridge.log_path:
+            return
+        journal.set_path(os.path.splitext(bridge.log_path)[0] + ".jsonl")
+        journal.write("session", phase="start", profile=prof.name, body=a.body,
+                      limit=a.limit, ramp=a.ramp, autopilot=a.autopilot,
+                      csv=bridge.log_path, version=version)
+        journal_started = True
 
     def log(msg: str, level: str = "info", kind: str = "note", **fields) -> None:
         print(f"  [{time.strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -103,7 +115,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     # ---------- 逐帧回调（跑在串口读线程里，要快） ----------
     def on_sample(s) -> None:
         quiet = session.in_quiet_period(time.time(), events.LEGS_ONLINE_QUIET_S)
-        if quiet or bridge.legs_offline or not session.armed:
+        if quiet or bridge.legs_offline or not session.armed or not bridge.enabled or bridge._reconnecting:
             bridge.set_torque(0.0, 0.0)
             if hub:
                 hub.push_sample(s, 0.0, 0.0, 0.0)
@@ -131,8 +143,17 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     # ---------- 设备事件 ----------
     def on_event(ev: str) -> None:
+        if ev == "stall":
+            session.policy = P.make_policy("zero", 0.0, 1.5)
+            session.pulse_until = 0.0
+            bridge.set_torque(0.0, 0.0)
         if ev == "reconnected":
-            session.monitor.notify_reconnect()
+            from control.safety import SafetyMonitor
+            session.monitor = SafetyMonitor(prof, warmup_s=events.LEGS_ONLINE_QUIET_S)
+            session.legs_online_at = time.time()
+            session.last_motion = time.time()
+            session.policy = P.make_policy("zero", 0.0, 1.5)
+            start_journal("reconnected")
         if ev == "legs_online":
             # 实测：腿板上线后 3–10 s 内会有一次 35–40°、1200–1700 °/s 的自检快动
             from control.safety import SafetyMonitor
@@ -143,7 +164,6 @@ def main(argv: Optional[list[str]] = None) -> None:
             return
         if ev.startswith("trip:"):
             session.armed = False
-            import control.policies as P
             session.policy = P.make_policy("zero", 0.0, 1.5)
         msg, level = events.describe(ev)
         log(msg, level, kind="event", event=ev)
@@ -154,6 +174,12 @@ def main(argv: Optional[list[str]] = None) -> None:
     def run_cmd(c: dict, who: str) -> None:
         """所有命令都从这里走：先记流水（谁下的、下了什么），再交给分发器。"""
         journal.write("command", by=who, cmd=dict(c))
+        if c.get("op") in {"policy", "hold", "torque"} and (
+            not bridge.enabled or bridge._reconnecting or bridge.stream_hz() < 50 or
+            session.in_quiet_period(time.time(), events.LEGS_ONLINE_QUIET_S)
+        ):
+            log("设备未就绪或处于安全等待期，忽略控制命令；请恢复后重新下发", "warn")
+            return
         commands.apply(c, session=session, bridge=bridge, log=log)
 
     bridge.on_event(on_event)
@@ -208,9 +234,22 @@ def main(argv: Optional[list[str]] = None) -> None:
     if hub:
         hub.start()
         print(f"仪表盘：http://localhost:8000  （手机：http://{lan_ip()}:8000）", flush=True)
-    print("PING    ->", bridge.ping())
-    print("VERSION ->", bridge.version())
-    print("ENABLE  ->", bridge.enable(send_torque=True))
+    version_info = "pending"
+    try:
+        bridge.open()
+        print("PING    ->", bridge.ping())
+        version_info = bridge.version()
+        print("VERSION ->", version_info)
+        print("ENABLE  ->", bridge.enable(send_torque=True))
+        if isinstance(bridge, ExoBridge):
+            from control.safety import SafetyMonitor
+            session.monitor = SafetyMonitor(prof, warmup_s=events.LEGS_ONLINE_QUIET_S)
+            session.legs_online_at = time.time()
+    except (OSError, RuntimeError, TimeoutError) as e:
+        if not isinstance(bridge, ExoBridge):
+            raise
+        log(f"等待外骨骼串口：{e}", "warn")
+        bridge.start_recovery(send_torque=True)
     print(f"安全档 {prof.name}: acc>{prof.acc_trip_g}g gyro>{prof.gyro_trip_dps} "
           f"tilt>{prof.tilt_trip_deg} 关节>{prof.joint_dps_trip}°/s | "
           f"软限幅 ±{a.limit} Nm 斜坡 {a.ramp} Nm/s | 记录 {bridge.log_path}")
@@ -222,11 +261,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         snap = memory.snapshot()
         print(f"经验库 {a.memory_db}：继承了 {snap['inherited']} 条经验"
               f"（本次新播种 {snap['seeded']} 条）", flush=True)
-    if bridge.log_path:          # CSV 在 ENABLE 时才打开，流水跟它同名不同后缀
-        journal.set_path(os.path.splitext(bridge.log_path)[0] + ".jsonl")
-    journal.write("session", phase="start", profile=prof.name, body=a.body,
-                  limit=a.limit, ramp=a.ramp, autopilot=a.autopilot,
-                  csv=bridge.log_path, version=bridge.version())
+    start_journal(version_info)
     if journal.path:
         print(f"会话流水：{journal.path}（交付单用它生成）", flush=True)
     print(status.HEADER, flush=True)
@@ -249,7 +284,7 @@ def main(argv: Optional[list[str]] = None) -> None:
                 log(f"keepalive 脉冲 {KEEPALIVE_PULSE_NM} Nm × {KEEPALIVE_PULSE_S} s（左腿）")
 
             # 直觉层：每隔 --decide-period 做一次决策（会阻塞，所以只在主循环里做）
-            if decider is not None and decider.due(now):
+            if decider is not None and bridge.enabled and not bridge._reconnecting and decider.due(now):
                 try:
                     d = decider.tick(now, current_policy=session.policy.name,
                                      armed=session.armed, tripped=bridge.tripped,
@@ -290,13 +325,16 @@ def main(argv: Optional[list[str]] = None) -> None:
                 cl, cr = bridge.commanded
                 st = status.device_state(tripped=bridge.tripped, armed=session.armed,
                                          legs_offline=bridge.legs_offline,
-                                         reconnecting=bridge._reconnecting)
-                if not s:
-                    continue
-                print(status.console_line(
-                    state=st, policy=session.policy.name, gain=session.policy.gain,
-                    hz=bridge.stream_hz(), ldeg=s.ldeg, rdeg=s.rdeg, ldps=s.ldps, rdps=s.rdps,
-                    tau_l=cl, tau_r=cr, scale=stats["scale"], work_J=stats["work"]), flush=True)
+                                         reconnecting=bridge._reconnecting,
+                                         connected=bridge.enabled and bridge.stream_hz() > 0,
+                                         quiet=session.in_quiet_period(now, events.LEGS_ONLINE_QUIET_S))
+                if s:
+                    print(status.console_line(
+                        state=st, policy=session.policy.name, gain=session.policy.gain,
+                        hz=bridge.stream_hz(), ldeg=s.ldeg, rdeg=s.rdeg, ldps=s.ldps, rdps=s.rdps,
+                        tau_l=cl, tau_r=cr, scale=stats["scale"], work_J=stats["work"]), flush=True)
+                else:
+                    print(f"{time.strftime('%H:%M:%S'):>8} {st:>8} 等待实时数据", flush=True)
                 base = status.snapshot(
                     t=now, state=st, policy=session.policy.name, gain=session.policy.gain,
                     max_torque=session.policy.max_torque, hz=bridge.stream_hz(),
@@ -308,7 +346,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                 if hub:
                     hub.push_status(base)
                 status.write_status_file(STATUS_FILE, status.full_snapshot(
-                    base, ldeg=s.ldeg, rdeg=s.rdeg, ldps=s.ldps, rdps=s.rdps,
+                    base, ldeg=s.ldeg if s else None, rdeg=s.rdeg if s else None,
+                    ldps=s.ldps if s else None, rdps=s.rdps if s else None,
                     tau_l=cl, tau_r=cr, scale=stats["scale"], log=bridge.log_path))
     except KeyboardInterrupt:
         print("\nCtrl-C", flush=True)
