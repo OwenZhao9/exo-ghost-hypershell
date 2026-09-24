@@ -56,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--no-web", action="store_true", help="不启动网页仪表盘")
     ap.add_argument("--http-port", type=int, default=8000, help="网页端口")
     ap.add_argument("--ws-port", type=int, default=8765, help="遥测 WebSocket 端口")
+    ap.add_argument("--ws-host", default="0.0.0.0", help="遥测 WebSocket 监听地址；本机控制可设为 127.0.0.1")
     ap.add_argument("--state-dir", default="data", help="命令、状态和会话记录目录")
     ap.add_argument("--no-memory", action="store_true",
                     help="不加载经验库（默认加载 data/genes.db，遇到设备异常会自动回忆解法）")
@@ -119,7 +120,8 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     cmdq: "queue.Queue[dict]" = queue.Queue()
     hub = None if a.no_web else WebHub(on_command=cmdq.put,
-                                       http_port=a.http_port, ws_port=a.ws_port)
+                                       http_port=a.http_port, ws_port=a.ws_port,
+                                       ws_host=a.ws_host)
 
     bridge = make_bridge(a, session)
     if hub:

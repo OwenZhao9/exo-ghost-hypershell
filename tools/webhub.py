@@ -27,10 +27,12 @@ class _Quiet(http.server.SimpleHTTPRequestHandler):
 
 class WebHub:
     def __init__(self, on_command: Callable[[dict], None], ws_port: int = 8765,
-                 http_port: int = 8000, sample_div: int = 3, body: str = "real"):
+                 http_port: int = 8000, sample_div: int = 3, body: str = "real",
+                 ws_host: str = "0.0.0.0"):
         self.on_command = on_command
         self.ws_port, self.http_port, self.sample_div = ws_port, http_port, sample_div
         self.body = body
+        self.ws_host = ws_host
         self._clients: set = set()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._n = 0
@@ -59,7 +61,7 @@ class WebHub:
         asyncio.set_event_loop(self._loop)
         async def main():
             try:
-                async with websockets.serve(self._handler, "0.0.0.0", self.ws_port, max_queue=64, ping_interval=10, ping_timeout=10):
+                async with websockets.serve(self._handler, self.ws_host, self.ws_port, max_queue=64, ping_interval=10, ping_timeout=10):
                     await asyncio.Future()
             except OSError as e:
                 print(f"!!! WebSocket 端口 {self.ws_port} 启动失败：{e}（被别的程序占用？）", flush=True)

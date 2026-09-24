@@ -12,8 +12,16 @@ import pytest
 import control.policies as P
 from control.safety import PROFILES
 from runtime import commands, events, status
-from runtime.service import load_evomap_key, main
+from runtime.service import build_parser, load_evomap_key, main
 from runtime.session import Session
+from tools.webhub import WebHub
+
+
+def test_local_websocket_binding_can_be_selected_without_opening_device():
+    args = build_parser().parse_args(["--profile", "wearing", "--ws-host", "127.0.0.1"])
+    hub = WebHub(on_command=lambda _cmd: None, ws_host=args.ws_host)
+    assert args.profile == "wearing"
+    assert hub.ws_host == "127.0.0.1"
 
 
 def test_unsafe_keepalive_is_rejected_before_opening_serial():
